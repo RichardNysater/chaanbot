@@ -1,0 +1,15 @@
+[chaanbot]
+# Url of the matrix server
+matrix_server_url = https://matrix.example.com:8448
+
+# User id the both should have
+user_id = @chaanbot:example.com
+
+# Access token: https://t2bot.io/docs/access_tokens/
+access_token = SuperSecretToken
+
+# Rooms to join
+listen_rooms = #example:example.com, #test:example.com
+
+# The users allowed to invite the bot to channels. If not listed here the bot will not accept invites.
+allowed_inviters = @richard:example.com, @admin:example.com
