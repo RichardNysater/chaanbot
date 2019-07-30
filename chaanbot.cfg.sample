@@ -2,14 +2,28 @@
 # Url of the matrix server
 matrix_server_url = https://matrix.example.com:8448
 
-# User id the both should have
+# User id the bot should have
 user_id = @chaanbot:example.com
 
 # Access token: https://t2bot.io/docs/access_tokens/
 access_token = SuperSecretToken
 
-# Rooms to join
-listen_rooms = #example:example.com, #test:example.com
+# Path to the directory where the modules/scripts are located
+modules_path = modules
 
-# The users allowed to invite the bot to channels. If not listed here the bot will not accept invites.
+# Rooms to join. Can be room_id or alias
+listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:example.com
+
+# The users allowed to invite the bot to channels. If used the bot will only accept invites from listed user ids
 allowed_inviters = @richard:example.com, @admin:example.com
+
+# Whitelisted room ids. If used the bot will only be able to join whitelisted rooms.
+# Recommended to use room_ids and not aliases, as aliases will not work if invited into an unlisted room.
+#whitelisted_room_ids = !uYiOKapkBcMKMbUlxu:example.com, #chat:example.com
+
+# Blacklisted room ids. If used the bot will not join blacklisted rooms.
+# Recommended to use room_ids and not aliases, as aliases will not work if invited into an unlisted room.
+#blacklisted_room_ids = !uYiOKapkBcMKMbUlxu:example.com, #chat:example.com
+
+# Rooms to join upon start. Can use either room_id or alias.
+join_rooms = #pomf:pomf.us,#game:pomf.us,#movie:pomf.us
