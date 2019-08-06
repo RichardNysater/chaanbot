@@ -1,14 +1,16 @@
 import logging
-import re
+
+import command_utility
 
 logger = logging.getLogger("ping")
 config = {
     "always_run": False,
-    "commands": ["!alive", "!exists", "!running"]
+    "needs_init": False,
+    "commands": ["!alive", "!running"]
 }
 
 
-def run(room, event, message) -> bool:
+def run(matrix_client, room, event, message) -> bool:
     if should_run(message):
         room.send_text("Yes.")
         return True
@@ -16,7 +18,4 @@ def run(room, event, message) -> bool:
 
 
 def should_run(message) -> bool:
-    for command in config["commands"]:
-        if re.search("^" + command + ".*", message, re.IGNORECASE):
-            return True
-    return False
+    return command_utility.matches(config["commands"], message)

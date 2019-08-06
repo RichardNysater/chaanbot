@@ -5,6 +5,8 @@ import logging
 import os
 from time import sleep
 
+import matrix_utility
+
 logger = logging.getLogger("chaanbot")
 
 
@@ -63,6 +65,10 @@ class Chaanbot:
                 logger.debug("Importing module: {}".format(module_name))
                 module = importlib.import_module("modules." + module_name)
                 module.config["always_run"] = module.config.get("always_run", False)
+                if module.config.get("use_sqlite_database", False):
+                    module.config["sqlite_database_location"] = config.get("chaanbot", "sqlite_database_location")
+                if module.config.get("needs_init", False):
+                    module.init()
                 self.loaded_modules.append(module)
 
     def __join_rooms(self, config):
@@ -102,11 +108,11 @@ class Chaanbot:
             self.__join_room(room_id)
 
     def __join_room(self, room_id_or_alias):
-        room_id = self.__get_room_id(room_id_or_alias)
+        room_id = matrix_utility.get_room_id(self.client.rooms, room_id_or_alias)
         room_id = room_id if room_id else room_id_or_alias  # Might not be able to get room_id if room was unlisted
         if self.whitelisted_room_ids:
             for whitelisted_room_id_or_alias in self.whitelisted_room_ids:
-                whitelisted_room_id = self.__get_room_id(whitelisted_room_id_or_alias)
+                whitelisted_room_id = matrix_utility.get_room_id(self.client.rooms, whitelisted_room_id_or_alias)
                 if whitelisted_room_id == room_id:
                     logger.info("Room {} is whitelisted, joining it".format(room_id_or_alias))
                     room = self.client.join_room(whitelisted_room_id_or_alias)
@@ -114,7 +120,7 @@ class Chaanbot:
             logger.info("Room {} is not whitelisted, will not join it".format(room_id_or_alias))
         elif self.blacklisted_room_ids:
             for blacklisted_room_id_or_alias in self.blacklisted_room_ids:
-                blacklisted_room_id = self.__get_room_id(blacklisted_room_id_or_alias)
+                blacklisted_room_id = matrix_utility.get_room_id(self.client.rooms, blacklisted_room_id_or_alias)
                 if blacklisted_room_id == room_id:
                     logger.info("Room {} is blacklisted, will not join it".format(blacklisted_room_id_or_alias))
                     return
@@ -134,44 +140,19 @@ class Chaanbot:
         if event["content"]["msgtype"] != "m.text":
             return
         message = event["content"]["body"].strip()
-        self.__run_modules(event, room, message)
+        self.__run_modules(self.client, event, room, message)
 
-    def __run_modules(self, event, room, message):
+    def __run_modules(self, matrix_client, event, room, message):
         logger.info("Running {} modules on message".format(len(self.loaded_modules)))
         module_processed_message = False
         for module in self.loaded_modules:
             if not module_processed_message or module.config["always_run"]:
                 logger.debug("Running module {}".format(module))
-                if module.run(room, event, message):
+                if module.run(matrix_client, room, event, message):
                     module_processed_message = True
                     logger.debug("Module processed message successfully")
             else:
                 logger.debug("Module {} did not run as another module has already processed message".format(module))
-
-    def __get_room_id(self, id_or_name_or_alias) -> str:
-        """ Attempt to get a room id. Prio: room_id > canonical_alias > name > alias.
-        Will not be able to get room_id if room is unlisted.
-        """
-
-        for room_id in self.client.rooms:
-            room = self.client.rooms.get(room_id)
-            if room.room_id == id_or_name_or_alias:
-                return room
-
-        for room_id in self.client.rooms:
-            room = self.client.rooms.get(room_id)
-            if room.canonical_alias == id_or_name_or_alias:
-                return room
-
-        for room_id in self.client.rooms:
-            room = self.client.rooms.get(room_id)
-            if room.name == id_or_name_or_alias:
-                return room
-
-        for room_id in self.client.rooms:
-            room = self.client.rooms.get(room_id)
-            if id_or_name_or_alias in room.aliases:
-                return room
 
     @staticmethod
     def __on_leave(room_id, state):
