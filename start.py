@@ -8,19 +8,32 @@ from time import sleep
 from matrix_client.client import MatrixClient
 
 from chaanbot import Chaanbot
+from database import Database
+from matrix import Matrix
 
 logger = logging.getLogger("start")
 
 
-def get_config_path() -> str:
-    if "CONFIG" in os.environ:
-        return os.environ["CONFIG"]
+def main():
+    if "DEBUG" in os.environ:
+        logger.info("Running in debug mode")
+        logging.basicConfig(level=logging.DEBUG)
     else:
-        root_path = os.path.dirname(os.path.realpath(__file__))
-        return os.path.join(root_path, "chaanbot.cfg")
+        logging.basicConfig(level=logging.INFO)
+    config_path = _get_config_path()
+    logger.info("Reading config from {}".format(config_path))
+    config = configparser.ConfigParser()
+    if config.read(config_path):
+        matrix_client = _connect(config)
+        matrix = Matrix(matrix_client)
+        database = Database(config.get("chaanbot", "sqlite_database_location", fallback=None))
+        chaanbot = Chaanbot(config, matrix, database)
+        chaanbot.run()
+    else:
+        logger.error("Could not read config file")
 
 
-def connect(config) -> MatrixClient:
+def _connect(config) -> MatrixClient:
     # Connect to a matrix server
     base_url = config.get("chaanbot", "matrix_server_url")
     token = config.get("chaanbot", "access_token")
@@ -34,24 +47,15 @@ def connect(config) -> MatrixClient:
         logger.warning("Connection to {} failed".format(base_url) +
                        " with error message: " + str(e) + ", retrying in 5 seconds...")
         sleep(5)
-        connect(config)
+        _connect(config)
 
 
-def main():
-    if "DEBUG" in os.environ:
-        logger.info("Running in debug mode")
-        logging.basicConfig(level=logging.DEBUG)
+def _get_config_path() -> str:
+    if "CONFIG" in os.environ:
+        return os.environ["CONFIG"]
     else:
-        logging.basicConfig(level=logging.INFO)
-    config_path = get_config_path()
-    logger.info("Reading config from {}".format(config_path))
-    config = configparser.ConfigParser()
-    if config.read(config_path):
-        client = connect(config)
-        chaanbot = Chaanbot(config, client)
-        chaanbot.run()
-    else:
-        logger.error("Could not read config file")
+        root_path = os.path.dirname(os.path.realpath(__file__))
+        return os.path.join(root_path, "chaanbot.cfg")
 
 
 if __name__ == "__main__":

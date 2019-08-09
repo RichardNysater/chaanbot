@@ -39,3 +39,7 @@ class TestCommandUtility(TestCase):
         self.assertEqual(expected_argument, argument)
         self.assertEqual(expected_command, command_utility.get_command(message))
         self.assertEqual(expected_argument, command_utility.get_argument(message))
+
+    def test_get_None_if_no_argument(self):
+        message_without_argument = "!test"
+        self.assertIsNone(command_utility.get_argument(message_without_argument))

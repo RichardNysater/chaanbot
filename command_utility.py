@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 logger = logging.getLogger("command_utility")
 
@@ -25,8 +26,11 @@ def get_command(message) -> str:
     return get_command_and_argument(message)[0]
 
 
-def get_argument(message) -> str:
-    return get_command_and_argument(message)[1]
+def get_argument(message) -> Optional[str]:
+    try:
+        return get_command_and_argument(message)[1]
+    except IndexError:
+        return None
 
 
 def get_command_and_argument(message) -> (str, str):

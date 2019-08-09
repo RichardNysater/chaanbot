@@ -19,11 +19,12 @@ class TestChaanbot(TestCase):
             return "whitelisted"
 
     def test_load_environment_on_initialization(self):
-        client = Mock()
+        matrix = Mock()
         config = Mock()
+        database = Mock()
         config.get.side_effect = self.get_config_side_effect
 
-        self.chaanbot = chaanbot.Chaanbot(config, client)
+        self.chaanbot = chaanbot.Chaanbot(config, matrix, database)
 
         config.get.assert_any_call("chaanbot", "modules_path", fallback="modules")
         config.get.assert_any_call("chaanbot", "allowed_inviters", fallback=None)
@@ -33,7 +34,7 @@ class TestChaanbot(TestCase):
         self.assertEquals(["allowed"], self.chaanbot.allowed_inviters)
         self.assertEquals(["blacklisted"], self.chaanbot.blacklisted_room_ids)
         self.assertEquals(["whitelisted"], self.chaanbot.whitelisted_room_ids)
-        self.assertEquals(client, self.chaanbot.client)
+        self.assertEquals(matrix, self.chaanbot.matrix)
         self.assertEquals(config, self.chaanbot.config)
         pass
 
