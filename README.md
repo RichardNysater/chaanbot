@@ -4,14 +4,14 @@ A python 3 [matrix](https://matrix.org) bot using [matrix-python-sdk](https://gi
 
 Bot is under active development and severe breaking changes should be expected until a stable release is created.
 
-#Install instructions
+# Install instructions
 Install dependencies:
 ```
 sudo apt-get install python3-pip python3-dev nginx
 sudo pip3 install virtualenv
 ```
 
-Add user for bot. Not required but recommended.
+Add user for bot. Not required but recommended:
 ```
 sudo adduser --disabled-password chaanbot
 sudo su chaanbot
@@ -26,7 +26,7 @@ python3 -m pip install --no-cache-dir --index-url https://test.pypi.org/simple/ 
 ```
 
 Start bot to initialize config file creation, then edit the config file to your liking.
-Output of running the bot will show where the config file is located.
+Output of running the bot will show where the config file is located:
 ```
 chaanbot
 nano .config/chaanbot/chaanbot.cfg
