@@ -1,6 +1,6 @@
 import logging
 
-import command_utility
+from chaanbot import command_utility
 
 logger = logging.getLogger("ping")
 

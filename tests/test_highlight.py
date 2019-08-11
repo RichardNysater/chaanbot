@@ -1,7 +1,7 @@
 from unittest import TestCase
 from unittest.mock import Mock
 
-from modules.highlight import Highlight
+from chaanbot.modules.highlight import Highlight
 
 
 class TestHighlight(TestCase):
@@ -36,7 +36,7 @@ class TestHighlight(TestCase):
         self.assert_should_run("!hlg group")
         self.assert_should_run("!hlgroup group")
         self.assert_should_run("!highlightgroup group")
-        
+
         self.assert_should_run("!hlall")
         self.assert_should_run("!hl all")
         self.assert_should_run("!highlightall")

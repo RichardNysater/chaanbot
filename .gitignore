@@ -1,3 +1,32 @@
+# filenames
+*~
+.*.swp
+.#*
+*.deb
+*.egg
+*.egg-info
+*.lock
+*.pyc
+*.tac
+_trial_temp/
+_trial_temp*/
+
+#Configs etc
 chaanbot.cfg
 *.db
-.idea/*
+
+#IDEs
+/.idea/
+/.ropeproject/
+/.vscode/
+
+# build products
+/.coverage*
+!/.coveragerc
+/.tox
+/build/
+/coverage.*
+/dist/
+/docs/build/
+/htmlcov
+/pip-wheel-metadata/

@@ -2,19 +2,20 @@
 
 import importlib
 import logging
-import os
 from time import sleep
+
+import pkg_resources
 
 logger = logging.getLogger("chaanbot")
 
 
-class Chaanbot:
+class Client:
     blacklisted_room_ids, whitelisted_room_ids, loaded_modules, allowed_inviters = [], [], [], []
 
     def __init__(self, config, matrix, database):
         try:
             try:
-                self._load_modules(config, matrix, database)
+                self._load_modules(matrix, database)
             except IOError as e:
                 logger.warning("Could not load module(s) due to: {}".format(str(e)), e)
             self._load_environment(config)
@@ -35,23 +36,21 @@ class Chaanbot:
         while True:
             sleep(1)
 
-    def _load_modules(self, config, matrix, database):
-        scripts_path = config.get("chaanbot", "modules_path", fallback="modules")
+    def _load_modules(self, matrix, database):
+        files = pkg_resources.resource_listdir("chaanbot", "modules")
+        module_files = list(filter(lambda file: '.py' in file and '__' not in file, files))
+        logger.info("Loading modules: {}".format(module_files))
 
-        files = os.listdir(scripts_path)
-        logger.info("Loading modules: {}".format(files))
+        for module_file in module_files:
+            module_name = module_file.replace('.py', '')
+            logger.debug("Importing module: {}".format(module_name))
+            module = importlib.import_module("chaanbot.modules." + module_name)
 
-        for file in files:
-            if '.py' in file:
-                module_name = file.replace('.py', '')
-                logger.debug("Importing module: {}".format(module_name))
-                module = importlib.import_module("modules." + module_name)
-
-                class_name = ''.join(word.title() for word in module_name.split('_'))
-                class_ = getattr(module, class_name)
-                instance = class_(matrix, database)
-                instance.config["always_run"] = instance.config.get("always_run", False)
-                self.loaded_modules.append(instance)
+            class_name = ''.join(word.title() for word in module_name.split('_'))
+            class_ = getattr(module, class_name)
+            instance = class_(matrix, database)
+            instance.config["always_run"] = instance.config.get("always_run", False)
+            self.loaded_modules.append(instance)
 
     def _load_environment(self, config):
         allowed_inviters = config.get("chaanbot", "allowed_inviters", fallback=None)

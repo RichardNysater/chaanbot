@@ -11,9 +11,6 @@ user_id = @chaanbot:example.com
 # Access token: https://t2bot.io/docs/access_tokens/
 access_token = SuperSecretToken
 
-# Path to the directory where the modules/scripts are located
-modules_path = modules
-
 # Rooms to join upon start. Can be either room_id or alias
 listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:example.com
 

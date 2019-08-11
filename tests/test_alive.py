@@ -1,7 +1,7 @@
 from unittest import TestCase
 from unittest.mock import Mock
 
-from modules.alive import Alive
+from chaanbot.modules.alive import Alive
 
 
 class TestAlive(TestCase):

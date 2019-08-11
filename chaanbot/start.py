@@ -5,11 +5,13 @@ import sys
 import traceback
 from time import sleep
 
+import appdirs
+import pkg_resources
 from matrix_client.client import MatrixClient
 
-from chaanbot import Chaanbot
-from database import Database
-from matrix import Matrix
+from chaanbot.client import Client
+from chaanbot.database import Database
+from chaanbot.matrix import Matrix
 
 logger = logging.getLogger("start")
 
@@ -27,7 +29,7 @@ def main():
         matrix_client = _connect(config)
         matrix = Matrix(matrix_client)
         database = Database(config.get("chaanbot", "sqlite_database_location", fallback=None))
-        chaanbot = Chaanbot(config, matrix, database)
+        chaanbot = Client(config, matrix, database)
         chaanbot.run()
     else:
         logger.error("Could not read config file")
@@ -51,11 +53,26 @@ def _connect(config) -> MatrixClient:
 
 
 def _get_config_path() -> str:
-    if "CONFIG" in os.environ:
-        return os.environ["CONFIG"]
-    else:
-        root_path = os.path.dirname(os.path.realpath(__file__))
-        return os.path.join(root_path, "chaanbot.cfg")
+    """Read configuration file and return its contents
+    """
+    cfg_dir = appdirs.user_config_dir('chaanbot')
+    if not os.path.exists(cfg_dir):
+        os.makedirs(cfg_dir)
+    cfg_path = os.path.join(cfg_dir, 'chaanbot.cfg')
+    if not os.path.isfile(cfg_path):
+        create_user_config(cfg_path)
+        raise RuntimeError(
+            "Config file was not found. New config file created at {}. Edit and rerun bot.".format(cfg_path))
+    return cfg_path
+
+
+def create_user_config(cfg_path):
+    """Create the user's config file
+    """
+    with open(cfg_path, 'wb') as dest:
+        sample_config = pkg_resources.resource_string(__name__, "chaanbot.cfg.sample")
+        logger.info(sample_config)
+        dest.write(sample_config)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,15 @@
+[Unit]
+Description=A Matrix chat bot
+
+[Service]
+User=chaanbot
+Group=chaanbot
+WorkingDirectory=/home/chaanbot/chaanbot
+Environment="PATH=/home/chaanbot/chaanbot/bin"
+ExecStart=/home/chaanbot/chaanbot/bin/chaanbot
+ExecStop=/bin/kill -9 $MAINPID
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

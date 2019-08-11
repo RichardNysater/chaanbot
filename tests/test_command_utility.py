@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-import command_utility
+from chaanbot import command_utility
 
 
 class TestCommandUtility(TestCase):

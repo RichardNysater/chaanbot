@@ -1,7 +1,7 @@
 from unittest import TestCase, mock
 from unittest.mock import Mock
 
-import matrix
+from chaanbot import matrix
 
 
 class TestMatrixUtility(TestCase):

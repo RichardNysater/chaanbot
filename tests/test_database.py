@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from database import Database
+from chaanbot.database import Database
 
 
 class TestDatabase(TestCase):

@@ -1,10 +1,10 @@
 from unittest import TestCase
 from unittest.mock import Mock
 
-import chaanbot
+from chaanbot.client import Client
 
 
-class TestChaanbot(TestCase):
+class TestClient(TestCase):
 
     def get_config_side_effect(*args, **kwargs):
         if args[1] != "chaanbot":
@@ -24,18 +24,17 @@ class TestChaanbot(TestCase):
         database = Mock()
         config.get.side_effect = self.get_config_side_effect
 
-        self.chaanbot = chaanbot.Chaanbot(config, matrix, database)
+        self.client = Client(config, matrix, database)
 
-        config.get.assert_any_call("chaanbot", "modules_path", fallback="modules")
         config.get.assert_any_call("chaanbot", "allowed_inviters", fallback=None)
         config.get.assert_any_call("chaanbot", "blacklisted_room_ids", fallback=None)
         config.get.assert_any_call("chaanbot", "whitelisted_room_ids", fallback=None)
 
-        self.assertEquals(["allowed"], self.chaanbot.allowed_inviters)
-        self.assertEquals(["blacklisted"], self.chaanbot.blacklisted_room_ids)
-        self.assertEquals(["whitelisted"], self.chaanbot.whitelisted_room_ids)
-        self.assertEquals(matrix, self.chaanbot.matrix)
-        self.assertEquals(config, self.chaanbot.config)
+        self.assertEquals(["allowed"], self.client.allowed_inviters)
+        self.assertEquals(["blacklisted"], self.client.blacklisted_room_ids)
+        self.assertEquals(["whitelisted"], self.client.whitelisted_room_ids)
+        self.assertEqual(matrix, self.client.matrix)
+        self.assertEqual(config, self.client.config)
         pass
 
     def test_load_modules_on_initialization(self):
