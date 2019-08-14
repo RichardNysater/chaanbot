@@ -30,7 +30,7 @@ def main():
         matrix = Matrix(matrix_client)
         database = Database(config.get("chaanbot", "sqlite_database_location", fallback=None))
         chaanbot = Client(config, matrix, database)
-        chaanbot.run()
+        chaanbot.run(lambda exception: _connect(config))
     else:
         logger.error("Could not read config file")
 

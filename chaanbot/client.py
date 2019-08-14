@@ -27,11 +27,11 @@ class Client:
             logger.exception("Failed with exception: {}".format(str(exception)), exception)
             raise exception
 
-    def run(self):
+    def run(self, exception_handler):
         self._join_rooms(self.config)
         self.matrix.matrix_client.add_invite_listener(self._on_invite)
         self.matrix.matrix_client.add_leave_listener(self._on_leave)
-        self.matrix.matrix_client.start_listener_thread()
+        self.matrix.matrix_client.start_listener_thread(exception_handler=exception_handler)
         logger.info("Listeners added, now running...")
         while True:
             sleep(1)
