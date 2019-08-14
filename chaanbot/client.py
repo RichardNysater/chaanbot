@@ -47,10 +47,17 @@ class Client:
             module = importlib.import_module("chaanbot.modules." + module_name)
 
             class_name = ''.join(word.title() for word in module_name.split('_'))
-            class_ = getattr(module, class_name)
-            instance = class_(matrix, database)
+            module_class = getattr(module, class_name)
+            instance = self._instantiate_module_class(module_class, matrix, database)
             instance.config["always_run"] = instance.config.get("always_run", False)
             self.loaded_modules.append(instance)
+
+    @staticmethod
+    def _instantiate_module_class(module_class, matrix, database):
+        try:
+            return module_class(matrix, database)
+        except TypeError:
+            return module_class()
 
     def _load_environment(self, config):
         allowed_inviters = config.get("chaanbot", "allowed_inviters", fallback=None)

@@ -30,9 +30,9 @@ class TestClient(TestCase):
         config.get.assert_any_call("chaanbot", "blacklisted_room_ids", fallback=None)
         config.get.assert_any_call("chaanbot", "whitelisted_room_ids", fallback=None)
 
-        self.assertEquals(["allowed"], self.client.allowed_inviters)
-        self.assertEquals(["blacklisted"], self.client.blacklisted_room_ids)
-        self.assertEquals(["whitelisted"], self.client.whitelisted_room_ids)
+        self.assertEqual(["allowed"], self.client.allowed_inviters)
+        self.assertEqual(["blacklisted"], self.client.blacklisted_room_ids)
+        self.assertEqual(["whitelisted"], self.client.whitelisted_room_ids)
         self.assertEqual(matrix, self.client.matrix)
         self.assertEqual(config, self.client.config)
         pass

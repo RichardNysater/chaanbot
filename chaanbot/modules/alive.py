@@ -8,11 +8,12 @@ logger = logging.getLogger("ping")
 class Alive:
     config = {
         "always_run": False,
-        "commands": ["!alive", "!running"]
+        "operations": {
+            "alive": {
+                "commands": ["!alive", "!running"]
+            }
+        }
     }
-
-    def __init__(self, matrix, database):
-        return
 
     def run(self, room, event, message) -> bool:
         if self.should_run(message):
@@ -21,4 +22,4 @@ class Alive:
         return False
 
     def should_run(self, message) -> bool:
-        return command_utility.matches(self.config["commands"], message)
+        return command_utility.matches(self.config["operations"], message)

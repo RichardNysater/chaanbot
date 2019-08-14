@@ -1,23 +1,31 @@
 import logging
-from typing import Optional
+import re
 
 logger = logging.getLogger("command_utility")
 
 
-def matches(commands_dict_or_list, message) -> bool:
-    if not message:
+def matches(command_dict_or_operation, message) -> bool:
+    if not message or not command_dict_or_operation:
         return False
 
-    if isinstance(commands_dict_or_list, dict):
-        for operation in commands_dict_or_list:
-            for command in commands_dict_or_list[operation]:
-                if command and command.lower() == get_command_and_argument(message)[0].lower():
-                    logger.debug("Message matches command dict")
-                    return True
-    elif isinstance(commands_dict_or_list, list):
-        for command in commands_dict_or_list:
-            if command and command.lower() == get_command_and_argument(message)[0].lower():
-                logger.debug("Message matches command list")
+    if "commands" in command_dict_or_operation:  # If operation was passed in then dict should have "commands" key
+        operation = command_dict_or_operation
+        return _operation_matches_message(operation, message)
+    else:
+        for operation, value in command_dict_or_operation.items():
+            if _operation_matches_message(value, message):
+                return True
+    return False
+
+
+def _operation_matches_message(operation, message) -> bool:
+    for command in operation["commands"]:
+        if command and command.lower() == get_command(message).lower():
+            has_argument_regex = "argument_regex" in operation
+            if not has_argument_regex and not get_argument(message):
+                return True
+            if re.match(operation["argument_regex"], get_argument(message)):
+                logger.debug("Message matches command dict and argument regex")
                 return True
     return False
 
@@ -26,11 +34,13 @@ def get_command(message) -> str:
     return get_command_and_argument(message)[0]
 
 
-def get_argument(message) -> Optional[str]:
+def get_argument(message) -> str:
+    """Get the argument to a message. A message looks like: [command] [argument].
+    E.g. the argument to "!hl test" would be "test"."""
     try:
         return get_command_and_argument(message)[1]
     except IndexError:
-        return None
+        return ""
 
 
 def get_command_and_argument(message) -> (str, str):

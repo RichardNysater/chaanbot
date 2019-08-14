@@ -1,0 +1,30 @@
+Modules are scripts which are run on messages sent by users in Matrix rooms.
+A module usually operates on a command (the first word of the message) and an optional argument (any following words).
+E.g. the message "fear no evil" would be interpreted as command: "fear" and argument: "no evil".
+
+Modules are dynamically loaded into chaanbot when bot is started and needs to adhere to a few rules:
+1) Module file must be snake_case_named and must contain a class with the same name as the file name but UpperCamelCase.
+    Example: "great_module.py" should have "class GreatModule:" in it.
+2) Module may have an __init__ method if it needs to use matrix or database connection. If so, it should look like:
+    def __init__(self, matrix, database):
+3) Module must have a run method which looks like:
+def run(self, room, event, message) -> bool:
+
+The run method must return either True or False, depending on whether a command in the message matched the module or not.
+The return value of the run method will be used to decide if other modules should be invoked on the message or not, so
+do not return True if other modules which do not always run should be invoked.
+
+4) Class may have a config dict. Consistency suggests to use the same format as other modules, though it is not required.
+    config = {
+        "always_run": Optional[bool]
+        # If always_run is True, the return value of other modules' run method is disregarded and module will always
+        # be invoked on the message. If always_run is missing it is assumed to be False.
+
+        "operations": { # Contains the operations the module can perform
+            "[NAME_OF_OPERATION]": { # Name of the operation this module performs, can be anything.
+                "commands": list[COMMAND_STRING], # A command is the first word of a message. E.g. "!alive"
+                "argument_regex": Optional[REGEX_STRING],
+                # If command takes an argument, this regex can be used to check if argument matches command.
+            }
+        }
+    }

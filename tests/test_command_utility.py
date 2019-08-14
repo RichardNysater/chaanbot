@@ -5,30 +5,45 @@ from chaanbot import command_utility
 
 class TestCommandUtility(TestCase):
 
-    def test_match_dict_input(self):
-        commands = {"commands": ["cmd1", "cmd2"]}
-        self.assertTrue(command_utility.matches(commands, "cmd1"))
-        self.assertTrue(command_utility.matches(commands, "cmd2"))
+    def test_match_command_input(self):
+        operations = {
+            "cmd1": {
+                "commands": ["!cmd1", "!cmd11"],
+                "argument_regex": "hello"
+            },
+            "cmd2": {
+                "commands": ["!cmd2", "!cmd22"],
+                "argument_regex": "test"
+            }
+        }
 
-    def test_match_list_input(self):
-        commands = ["cmd1", "cmd2"]
-        self.assertTrue(command_utility.matches(commands, "cmd1"))
-        self.assertTrue(command_utility.matches(commands, "cmd2"))
+        self.assertTrue(command_utility.matches(operations, "!cmd1 hello"))
+        self.assertTrue(command_utility.matches(operations, "!cmd11 hello"))
+        self.assertTrue(command_utility.matches(operations, "!cmd2 test"))
+        self.assertTrue(command_utility.matches(operations, "!cmd22 test"))
 
-    def test_not_match_dict_input(self):
-        commands = {"commands": ["cmd1", "cmd2"]}
-        self.assertFalse(command_utility.matches(commands, "commands"))  # Should not match dict key
-        self.assertFalse(command_utility.matches(commands, "cmd"))  # Should not partial match
-        self.assertFalse(command_utility.matches(commands, "cmd11"))  # Should not match longer
-        self.assertFalse(command_utility.matches(commands, None))  # Should not match None
-        self.assertFalse(command_utility.matches(None, "cmd2"))  # Should not match None
+    def test_match_operation_input(self):
+        operation = {
+            "commands": ["!cmd1", "!cmd11"],
+            "argument_regex": "hello"
+        }
 
-    def test_not_match_list_input(self):
-        commands = ["cmd1", "cmd2"]
-        self.assertFalse(command_utility.matches(commands, "cmd"))  # Should not partial match
-        self.assertFalse(command_utility.matches(commands, "cmd11"))  # Should not match longer
-        self.assertFalse(command_utility.matches(commands, None))  # Should not match None
-        self.assertFalse(command_utility.matches(None, "cmd2"))  # Should not match None
+        self.assertTrue(command_utility.matches(operation, "!cmd1 hello"))
+        self.assertTrue(command_utility.matches(operation, "!cmd11 hello"))
+
+    def test_not_match_command_input(self):
+        operations = {
+            "operation": {
+                "commands": ["!cmd1"],
+                "argument_regex": "hello"
+            }
+        }
+
+        self.assertFalse(command_utility.matches(operations, "!cmd2"))  # Should not match operation
+        self.assertFalse(command_utility.matches(operations, "!cmd"))  # Should not partial match operation
+        self.assertFalse(command_utility.matches(operations, "!cmd11"))  # Should not match longer operation
+        self.assertFalse(command_utility.matches(None, "!cmd1"))  # Should not match None
+        self.assertFalse(command_utility.matches(operations, None))  # Should not match None
 
     def test_get_command_and_argument(self):
         expected_command = "!command"
@@ -40,6 +55,6 @@ class TestCommandUtility(TestCase):
         self.assertEqual(expected_command, command_utility.get_command(message))
         self.assertEqual(expected_argument, command_utility.get_argument(message))
 
-    def test_get_None_if_no_argument(self):
+    def test_get_Empty_string_if_no_argument(self):
         message_without_argument = "!test"
-        self.assertIsNone(command_utility.get_argument(message_without_argument))
+        self.assertEquals("", command_utility.get_argument(message_without_argument))

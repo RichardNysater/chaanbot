@@ -8,43 +8,62 @@ logger = logging.getLogger("highlight")
 class Highlight:
     config = {
         "always_run": False,
-        "commands": {"highlight_all": ["!hlall", "!highlightall"],
-                     "highlight_group": ["!hlg", "!highlightgroup", "!hlgroup"],
-                     "add_to_group": ["!hla", "!hladd", "!highlightadd"],
-                     "delete_from_group": ["!hld", "!hldelete", "!highlightdelete"],
-                     "highlight": ["!hl", "!highlight"]},
+        "operations": {
+            "highlight_all": {
+                "commands": ["!hlall", "!highlightall"],
+                "argument_regex": "[.+]?",
+            },
+            "highlight_group": {
+                "commands": ["!hlg", "!highlightgroup", "!hlgroup"],
+                "argument_regex": ".+[\\s.+]?",
+            },
+            "add_to_group": {
+                "commands": ["!hla", "!hladd", "!highlightadd"],
+                "argument_regex": ".+ .+",
+            },
+            "delete_from_group": {
+                "commands": ["!hld", "!hldelete", "!highlightdelete"],
+                "argument_regex": ".+ .+",
+            },
+            "highlight": {
+                "commands": ["!hl", "!highlight"],
+                "argument_regex": ".+",
+            },
+        }
     }
 
     def __init__(self, matrix, database):
-        self.database = database
         self.matrix = matrix
-        logger.debug("Initializing highlight database if needed")
-        conn = database.connect()
-        conn.execute('''CREATE TABLE IF NOT EXISTS highlight_groups
-        (ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-        ROOM_ID TEXT NOT NULL,
-        "GROUP_NAME" TEXT NOT NULL,
-        MEMBER TEXT NOT NULL,
-        UNIQUE(ROOM_ID,GROUP_NAME,MEMBER));    
-        ''')
-        conn.commit()
+        if database:
+            self.database = database
+            logger.debug("Initializing highlight database if needed")
+            conn = database.connect()
+            conn.execute('''CREATE TABLE IF NOT EXISTS highlight_groups
+            (ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+            ROOM_ID TEXT NOT NULL,
+            "GROUP_NAME" TEXT NOT NULL,
+            MEMBER TEXT NOT NULL,
+            UNIQUE(ROOM_ID,GROUP_NAME,MEMBER));    
+            ''')
+            conn.commit()
+        else:
+            logger.info("No database provided, highlight module disabled")
 
     def run(self, room, event, message) -> bool:
-        if self.should_run(message):
-            logger.debug("Should run highlight, checking next command")
-            if command_utility.matches(self.config["commands"]["highlight_all"], message):
+        if self._should_run(message):
+            if command_utility.matches(self.config["operations"]["highlight_all"], message):
                 logger.debug("Highlighting all")
                 self._highlight_all(room, message)
-            elif command_utility.matches(self.config["commands"]["highlight_group"], message):
+            elif command_utility.matches(self.config["operations"]["highlight_group"], message):
                 logger.debug("Highlighting group")
                 self._highlight_group(room, message)
-            elif command_utility.matches(self.config["commands"]["highlight"], message):
+            elif command_utility.matches(self.config["operations"]["highlight"], message):
                 logger.debug("Highlighting")
                 self._highlight(room, message)
-            elif command_utility.matches(self.config["commands"]["add_to_group"], message):
+            elif command_utility.matches(self.config["operations"]["add_to_group"], message):
                 logger.debug("Adding to group")
                 self._add_or_create_group(room, message)
-            elif command_utility.matches(self.config["commands"]["delete_from_group"], message):
+            elif command_utility.matches(self.config["operations"]["delete_from_group"], message):
                 logger.debug("Deleting from group")
                 self._delete_from_group(room, message)
             else:
@@ -52,11 +71,8 @@ class Highlight:
             return True
         return False
 
-    def should_run(self, message) -> bool:
-        if self.config.get("use_sqlite_database", False) and not self.config.get("sqlite_database_location"):
-            logger.warning("Sqlite database location not set for Highlight module!")
-            return False
-        return command_utility.matches(self.config["commands"], message)
+    def _should_run(self, message) -> bool:
+        return self.database and command_utility.matches(self.config["operations"], message)
 
     def _highlight_all(self, room, message):
         users = room.get_joined_members()
@@ -76,7 +92,11 @@ class Highlight:
         return
 
     def _highlight_group(self, room, message):
-        arguments = command_utility.get_argument(message).split(None, 1)
+        argument = command_utility.get_argument(message)
+        if not argument:
+            room.send_text("Correct syntax is !hlg [group] [optional text].")
+            return
+        arguments = argument.split(None, 1)
         group = arguments[0]
 
         members = self._get_members(room, group)
@@ -93,7 +113,11 @@ class Highlight:
         return
 
     def _highlight(self, room, message):
-        arguments = command_utility.get_argument(message).split(None, 1)
+        argument = command_utility.get_argument(message)
+        if not argument:
+            room.send_text("Correct syntax is !hl [group] [optional text].")
+            return
+        arguments = argument.split(None, 1)
         group = arguments[0]
         members = self._get_members(room, group)
         member_user_ids = [self.matrix.get_user(room, member).user_id for member in members]
@@ -182,10 +206,10 @@ class Highlight:
 
     @staticmethod
     def _is_in_group(conn, room_id, group, member) -> bool:
-        first = conn.execute(
+        result = conn.execute(
             "SELECT 1 FROM highlight_groups WHERE room_id = ? AND group_name = ? AND member = ? LIMIT 1",
             (room_id, group, member))
-        result = first.fetchone()
+        result = result.fetchone()
         return result is not None
 
     def _get_members(self, room, group) -> list:

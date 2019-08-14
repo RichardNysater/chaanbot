@@ -17,36 +17,8 @@ class TestHighlight(TestCase):
         self.assertFalse(ran)
 
     def test_config_has_properties(self):
-        self.assertLess(0, len(self.highlight.config.get("commands")))
+        self.assertLess(0, len(self.highlight.config.get("operations")))
         self.assertFalse(self.highlight.config.get("always_run"))
-
-    def test_should_run_returns_true_if_commands_match_and_sqlite_database_location_set(self):
-        self.highlight.config["sqlite_database_location"] = "test"
-        self.assert_should_run("!hl group_to_highlight")
-        self.assert_should_run("!highlight group_to_highlight")
-
-        self.assert_should_run("!hla group person1 person2")
-        self.assert_should_run("!hladd group person1 person2")
-        self.assert_should_run("!highlightadd group person1 person2")
-
-        self.assert_should_run("!hld group person1")
-        self.assert_should_run("!hldelete group person1")
-        self.assert_should_run("!highlightdelete group person1")
-
-        self.assert_should_run("!hlg group")
-        self.assert_should_run("!hlgroup group")
-        self.assert_should_run("!highlightgroup group")
-
-        self.assert_should_run("!hlall")
-        self.assert_should_run("!hl all")
-        self.assert_should_run("!highlightall")
-        self.assert_should_run("!highlight all")
-
-    def assert_should_run(self, message):
-        self.assertTrue(self.highlight.should_run(message))
-
-    def test_should_run_returns_false_if_commands_do_not_match(self):
-        self.assertFalse(self.highlight.should_run("highlight!"))
 
     def test_highlight_all_without_text(self):
         user = Mock()
@@ -127,6 +99,17 @@ class TestHighlight(TestCase):
         self.room.send_text.assert_called_with(expected_send_message)
         conn.execute.assert_called_once()
 
+    def test_should_not_run_highlight_group_operation_if_missing_group_argument(self):
+        conn = Mock()
+        self._mock_get_member(conn, [["user1"]])
+        self._mock_get_user("user1")
+        self.highlight.matrix.is_online.return_value = True
+
+        self.highlight.run(self.room, None, "!hlg")
+
+        self.room.send_text.assert_not_called()
+        conn.execute.assert_not_called()
+
     def test_dont_highlight_group_if_none_to_highlight(self):
         conn = Mock()
         self._mock_get_member(conn, [])
@@ -150,6 +133,17 @@ class TestHighlight(TestCase):
 
         self.room.send_text.assert_called_with(expected_send_message)
         conn.execute.assert_called_once()
+
+    def test_should_not_run_highlight_operation_if_missing_group_argument(self):
+        conn = Mock()
+        self._mock_get_member(conn, [["user1"]])
+        self._mock_get_user("user1")
+        self.highlight.matrix.is_online.return_value = True
+
+        self.highlight.run(self.room, None, "!hl")
+
+        self.room.send_text.assert_not_called()
+        conn.execute.assert_not_called()
 
     def test_highlight_with_text(self):
         conn = Mock()
