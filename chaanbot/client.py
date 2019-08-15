@@ -12,10 +12,10 @@ logger = logging.getLogger("chaanbot")
 class Client:
     blacklisted_room_ids, whitelisted_room_ids, loaded_modules, allowed_inviters = [], [], [], []
 
-    def __init__(self, config, matrix, database):
+    def __init__(self, config, matrix, database, requests):
         try:
             try:
-                self._load_modules(matrix, database)
+                self._load_modules(config, matrix, database, requests)
             except IOError as e:
                 logger.warning("Could not load module(s) due to: {}".format(str(e)), e)
             self._load_environment(config)
@@ -36,7 +36,7 @@ class Client:
         while True:
             sleep(1)
 
-    def _load_modules(self, matrix, database):
+    def _load_modules(self, config, matrix, database, requests):
         files = pkg_resources.resource_listdir("chaanbot", "modules")
         module_files = list(filter(lambda file: '.py' in file and '__' not in file, files))
         logger.info("Loading modules: {}".format(module_files))
@@ -48,14 +48,14 @@ class Client:
 
             class_name = ''.join(word.title() for word in module_name.split('_'))
             module_class = getattr(module, class_name)
-            instance = self._instantiate_module_class(module_class, matrix, database)
+            instance = self._instantiate_module_class(module_class, config, matrix, database, requests)
             instance.config["always_run"] = instance.config.get("always_run", False)
             self.loaded_modules.append(instance)
 
     @staticmethod
-    def _instantiate_module_class(module_class, matrix, database):
+    def _instantiate_module_class(module_class, config, matrix, database, requests):
         try:
-            return module_class(matrix, database)
+            return module_class(config, matrix, database, requests)
         except TypeError:
             return module_class()
 

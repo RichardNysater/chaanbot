@@ -24,3 +24,7 @@ allowed_inviters = @richard:example.com, @admin:example.com
 # Blacklisted room ids. If used the bot will not join blacklisted rooms.
 # Recommended to use room_ids and not aliases, as aliases will not work if invited into an unlisted room.
 #blacklisted_room_ids = !uYiOKapkBcMKMbUlxu:example.com, #chat:example.com
+
+[darksky_weather]
+#API key for darksky.net. Go to https://darksky.net/dev/ and create an account for up to 1000 calls free per day
+#api_key =

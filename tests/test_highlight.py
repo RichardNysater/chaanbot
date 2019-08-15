@@ -10,7 +10,7 @@ class TestHighlight(TestCase):
         database = Mock()
         matrix = Mock()
         self.room = Mock()
-        self.highlight = Highlight(matrix, database)
+        self.highlight = Highlight(None, matrix, database, None)
 
     def test_not_ran_if_wrong_command(self):
         ran = self.highlight.run(self.room, None, "highlight")

@@ -7,6 +7,7 @@ from time import sleep
 
 import appdirs
 import pkg_resources
+import requests as requests
 from matrix_client.client import MatrixClient
 
 from chaanbot.client import Client
@@ -29,7 +30,7 @@ def main():
         matrix_client = _connect(config)
         matrix = Matrix(matrix_client)
         database = Database(config.get("chaanbot", "sqlite_database_location", fallback=None))
-        chaanbot = Client(config, matrix, database)
+        chaanbot = Client(config, matrix, database, requests)
         chaanbot.run(lambda exception: _connect(config))
     else:
         logger.error("Could not read config file")

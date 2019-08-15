@@ -7,24 +7,25 @@ from chaanbot.client import Client
 class TestClient(TestCase):
 
     def get_config_side_effect(*args, **kwargs):
-        if args[1] != "chaanbot":
-            raise Exception("First argument is: {}, but should be: chaanbot".format(args[0]))
-        if args[2] == "modules_path":
-            return ""
-        elif args[2] == "allowed_inviters":
-            return "allowed"
-        elif args[2] == "blacklisted_room_ids":
-            return "blacklisted"
-        elif args[2] == "whitelisted_room_ids":
-            return "whitelisted"
+        if args[1] == "chaanbot":
+            if args[2] == "modules_path":
+                return ""
+            elif args[2] == "allowed_inviters":
+                return "allowed"
+            elif args[2] == "blacklisted_room_ids":
+                return "blacklisted"
+            elif args[2] == "whitelisted_room_ids":
+                return "whitelisted"
+        return None
 
     def test_load_environment_on_initialization(self):
         matrix = Mock()
-        config = Mock()
         database = Mock()
+        requests = Mock()
+        config = Mock()
         config.get.side_effect = self.get_config_side_effect
 
-        self.client = Client(config, matrix, database)
+        self.client = Client(config, matrix, database, requests)
 
         config.get.assert_any_call("chaanbot", "allowed_inviters", fallback=None)
         config.get.assert_any_call("chaanbot", "blacklisted_room_ids", fallback=None)

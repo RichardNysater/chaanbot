@@ -9,6 +9,7 @@ verify_ssl = true
 matrix-client = "*"
 coverage = "*"
 appdirs = "*"
+requests = "*"
 
 [requires]
 python_version = "3.7"

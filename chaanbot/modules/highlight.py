@@ -32,7 +32,7 @@ class Highlight:
         }
     }
 
-    def __init__(self, matrix, database):
+    def __init__(self, config, matrix, database, requests):
         self.matrix = matrix
         if database:
             self.database = database
