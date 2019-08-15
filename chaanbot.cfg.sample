@@ -15,7 +15,7 @@ access_token = SuperSecretToken
 listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:example.com
 
 # The users allowed to invite the bot to channels. If used the bot will only accept invites from listed user ids
-allowed_inviters = @richard:example.com, @admin:example.com
+#allowed_inviters = @richard:example.com, @admin:example.com
 
 # Whitelisted room ids. If used the bot will only be able to join whitelisted rooms.
 # Recommended to use room_ids and not aliases, as aliases will not work if invited into an unlisted room.
