@@ -1,3 +1,21 @@
+""" The Highlight module allows users to easily notify groups of users in a room if they're online.
+
+Available commands:
+!hla [GROUP] [USER1] [USER2] ...    - Adds one or more users to a group
+!hld [GROUP] [USER1] [USER2] ...    - Delete one or more users from a group
+!hl [GROUP] [OPTIONAL TEXT]         - Notify online users in group
+!hlall [OPTIONAL TEXT]              - Notify all online users in room
+!hlg [GROUP] [OPTIONAL TEXT]        - Notify all users in group regardless of online status
+
+Usage example:
+!hla developers richard admin
+!hl developers anyone comfortable with Perl?
+
+Would results in:
+"Bot: @Richard:example.com @Admin:example.com: anyone comfortable with Perl?"
+
+Note: Groups are room-dependent.
+"""
 import logging
 
 from chaanbot import command_utility

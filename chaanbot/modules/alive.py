@@ -1,3 +1,14 @@
+""" The Alive module allows users to check if bot is alive
+
+Available commands:
+!alive                  - Bot will respond "Yes." if it's running and allowed to send to room.
+
+Usage example:
+!alive
+
+Would results in:
+"Bot: Yes."
+"""
 import logging
 
 from chaanbot import command_utility

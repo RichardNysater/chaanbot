@@ -1,6 +1,11 @@
 # chaanbot
 
 A python 3 [matrix](https://matrix.org) bot using [matrix-python-sdk](https://github.com/matrix-org/matrix-python-sdk).
+The bot is extensible and currently provides:
+* Highlight module allows users to easily notify groups of users.
+E.g. "!hl javadevs spring-boot vs micronaut?" would higlight any user in the javadevs group.
+* Weather module allows users to broadcast weather reports.
+* More to come!
 
 Bot is under active development and severe breaking changes should be expected until a stable release is created.
 
@@ -21,7 +26,7 @@ Create virtual environment and install bot:
 ```
 python3 -m venv chaanbot
 source chaanbot/bin/activate
-cd chaanbot
+pip3 install -r requirements.txt
 python3 -m pip install --no-cache-dir --index-url https://test.pypi.org/simple/ --no-deps chaanbot
 ```
 
@@ -59,3 +64,10 @@ sudo su chaanbot
 source /home/chaanbot/chaanbot/bin/activate
 python3 -m pip install -U --index-url https://test.pypi.org/simple/ --no-deps chaanbot
 ```
+
+# TODO
+* Improve error handling
+* Integration tests and better test coverage
+* More modules
+* Improve installation documentation for non-Ubuntu 18.04 installations :-)
+* Use Poetry for dependency management?

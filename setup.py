@@ -37,7 +37,7 @@ setuptools.setup(
     license="GPLv3+",
     url="https://github.com/RichardNysater/chaanbot",
     packages=setuptools.find_packages(),
-    install_requires=["matrix-client", "appdirs"],
+    install_requires=["matrix-client", "appdirs", "requests"],
     package_data={'': ['chaanbot.cfg.sample']},
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",

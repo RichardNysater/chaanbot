@@ -1,3 +1,19 @@
+""" The Darksky weather module allows users to broadcast the current weather of a (their?) location.
+
+Available commands:
+!addcoordinates [LATITUDE] [LONGITUDE]          - Sets the coordinates for a user
+!weather                                        - Send today's weather for user's location
+!weather [DAY IN FUTURE] [DAY IN FUTURE] ...    - Send several days' weather for user's location
+
+Usage example:
+!addcoordinates 59.3293 18.0686
+!weather 0 1 2
+
+Would results in (something similar to):
+"Bot:   Today: Min: 15.1, Max: 19.3. Cloudy with a high chance of rain
+        Tomorrow: Min: 25.1, Max: 30.3. Sunny
+        2 days from now: Min: -15, Max: -10. Heavy snow"
+"""
 import logging
 import re
 from typing import Optional
