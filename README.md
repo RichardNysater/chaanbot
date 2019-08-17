@@ -18,12 +18,11 @@ sudo adduser --disabled-password chaanbot
 sudo su chaanbot
 ```
 
-Create virtual environment and install bot:
+Create virtual environment and install bot and its dependencies:
 ```
 python3 -m venv chaanbot
 source chaanbot/bin/activate
-pip3 install -r requirements.txt
-python3 -m pip install --no-cache-dir --index-url https://test.pypi.org/simple/ --no-deps chaanbot
+python3 -m pip install chaanbot
 ```
 
 Start bot to initialize config file creation, then edit the config file to your liking.
@@ -46,7 +45,7 @@ sudo nano /etc/systemd/system/chaanbot.service
 Bot is now startable from systemctl:
 
 ```
-sudo systemctl start chaanbot
+sudo service chaanbot start
 ```
 
 And can be set to run on boot:
@@ -58,7 +57,7 @@ sudo systemctl enable chaanbot
 ```
 sudo su chaanbot
 source /home/chaanbot/chaanbot/bin/activate
-python3 -m pip install -U --index-url https://test.pypi.org/simple/ --no-deps chaanbot
+python3 -m pip install -U chaanbot
 ```
 
 # TODO
