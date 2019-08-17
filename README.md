@@ -10,11 +10,7 @@ E.g. "!hl javadevs spring-boot vs micronaut?" would higlight any user in the jav
 Bot is under active development and severe breaking changes should be expected until a stable release is created.
 
 # Install instructions
-Install dependencies:
-```
-sudo apt-get install python3-pip python3-dev nginx
-sudo pip3 install virtualenv
-```
+Chaanbot requires Python 3.
 
 Add user for bot. Not required but recommended:
 ```
