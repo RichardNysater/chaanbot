@@ -17,14 +17,22 @@ listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:exam
 # The users allowed to invite the bot to channels. If used the bot will only accept invites from listed user ids
 #allowed_inviters = @richard:example.com, @admin:example.com
 
-# Whitelisted room ids. If used the bot will only be able to join whitelisted rooms.
-# Recommended to use room_ids and not aliases, as aliases will not work if invited into an unlisted room.
+# Whitelisted room ids. If used the bot will only be able to join whitelisted rooms
+# Recommended to use room_ids and not aliases, as aliases will not work if invited into an unlisted room
 #whitelisted_room_ids = !uYiOKapkBcMKMbUlxu:example.com, #chat:example.com
 
-# Blacklisted room ids. If used the bot will not join blacklisted rooms.
-# Recommended to use room_ids and not aliases, as aliases will not work if invited into an unlisted room.
+# Blacklisted room ids. If used the bot will not join blacklisted rooms
+# Recommended to use room_ids and not aliases, as aliases will not work if invited into an unlisted room
 #blacklisted_room_ids = !uYiOKapkBcMKMbUlxu:example.com, #chat:example.com
 
+[modules]
+# Choose which modules should be enabled
+# Leave empty or commented out to load all modules (except the ones explicitly disabled)
+# enabled = alive, darksky_weather, highlight
+
+# Choose modules to disable
+# disabled = alive, highlight
+
 [darksky_weather]
-#API key for darksky.net. Go to https://darksky.net/dev/ and create an account for up to 1000 calls free per day
+# API key for darksky.net. Go to https://darksky.net/dev/ and create an account for up to 1000 calls free per day
 #api_key =

@@ -14,11 +14,11 @@ class Client:
 
     def __init__(self, config, matrix, database, requests):
         try:
+            self._load_environment(config)
             try:
                 self._load_modules(config, matrix, database, requests)
             except IOError as e:
                 logger.warning("Could not load module(s) due to: {}".format(str(e)), e)
-            self._load_environment(config)
             self.config = config
             self.matrix = matrix
             logger.info("Chaanbot successfully initialized.")
@@ -38,19 +38,32 @@ class Client:
 
     def _load_modules(self, config, matrix, database, requests):
         files = pkg_resources.resource_listdir("chaanbot", "modules")
-        module_files = list(filter(lambda file: '.py' in file and '__' not in file, files))
-        logger.info("Loading modules: {}".format(module_files))
+        modules = [file.replace('.py', '') for file in files if '.py' in file and '__' not in file]
+        logger.info("Existing modules: {}".format(modules))
+        modules_to_load = list(filter(lambda cur_module_file: self._is_enabled(cur_module_file), modules))
+        if len(modules_to_load) == len(modules):
+            logger.info("Loading all modules")
+        else:
+            logger.info("Loading modules: {}. Others are not enabled or explicitly disabled.".format(modules_to_load))
+        for module_to_load in modules_to_load:
+            self.load_module(config, database, matrix, module_to_load, requests)
 
-        for module_file in module_files:
-            module_name = module_file.replace('.py', '')
-            logger.debug("Importing module: {}".format(module_name))
-            module = importlib.import_module("chaanbot.modules." + module_name)
+    def load_module(self, config, database, matrix, module_to_load, requests):
+        logger.debug("Importing module: {}".format(module_to_load))
+        class_name = ''.join(word.title() for word in module_to_load.split('_'))
+        module = importlib.import_module("chaanbot.modules." + module_to_load)
+        module_class = getattr(module, class_name)
+        instance = self._instantiate_module_class(module_class, config, matrix, database, requests)
+        instance.config["always_run"] = instance.config.get("always_run", False)
+        self.loaded_modules.append(instance)
 
-            class_name = ''.join(word.title() for word in module_name.split('_'))
-            module_class = getattr(module, class_name)
-            instance = self._instantiate_module_class(module_class, config, matrix, database, requests)
-            instance.config["always_run"] = instance.config.get("always_run", False)
-            self.loaded_modules.append(instance)
+    def _is_enabled(self, module_name) -> bool:
+        if hasattr(self, "disabled_modules"):
+            if module_name in self.disabled_modules:
+                return False
+        if hasattr(self, "enabled_modules"):
+            return module_name in self.enabled_modules
+        return True
 
     @staticmethod
     def _instantiate_module_class(module_class, config, matrix, database, requests):
@@ -74,6 +87,16 @@ class Client:
         if whitelisted_rooms:
             self.whitelisted_room_ids = [str.strip(room) for room in whitelisted_rooms.split(",")]
             logger.debug("Whitelisted rooms: {}".format(self.whitelisted_room_ids))
+
+        enabled_modules = config.get("modules", "enabled", fallback=None)
+        if enabled_modules:
+            self.enabled_modules = [str.strip(module_name) for module_name in enabled_modules.split(",")]
+            logger.debug("Enabled modules: {}".format(self.enabled_modules))
+
+        disabled_modules = config.get("modules", "disabled", fallback=None)
+        if disabled_modules:
+            self.disabled_modules = [str.strip(module_name) for module_name in disabled_modules.split(",")]
+            logger.debug("Disabled modules: {}".format(self.disabled_modules))
 
     def _join_rooms(self, config):
         logger.debug("Available rooms: " + str(list(self.matrix.matrix_client.rooms.keys())))

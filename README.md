@@ -26,7 +26,13 @@ python3 -m pip install chaanbot
 ```
 
 Start bot to initialize config file creation, then edit the config file to your liking.
-Output of running the bot will show where the config file is located:
+Config file location is the user's config directory as determined by appdirs, typical locations are:
+
+        Mac OS X:  ~/Library/Application Support/chaanbot/chaanbot.cfg
+        Unix:      ~/.config/chaanbot/chaanbot.cfg or in $XDG_CONFIG_HOME, if defined
+        Win *:     C:\Users\<username>\AppData\[local or roaming]\chaanbot\chaanbot\chaanbot.cfg
+
+Output of running the bot will also show where the config file is located:
 ```
 chaanbot
 nano .config/chaanbot/chaanbot.cfg
