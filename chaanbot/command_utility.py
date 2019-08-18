@@ -1,7 +1,6 @@
 """ Help methods for commands to the bot """
 
 import logging
-import re
 
 logger = logging.getLogger("command_utility")
 
@@ -26,7 +25,7 @@ def _operation_matches_message(operation, message) -> bool:
             has_argument_regex = "argument_regex" in operation
             if not has_argument_regex and not get_argument(message):
                 return True
-            if re.match(operation["argument_regex"], get_argument(message), re.IGNORECASE):
+            if operation["argument_regex"].search(get_argument(message)):
                 logger.debug("Message matches command dict and argument regex")
                 return True
     return False

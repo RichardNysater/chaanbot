@@ -17,6 +17,7 @@ Would results in:
 Note: Groups are room-dependent.
 """
 import logging
+import re
 
 from chaanbot import command_utility
 
@@ -28,23 +29,23 @@ class Highlight:
     operations = {
         "highlight_all": {
             "commands": ["!hlall", "!highlightall"],
-            "argument_regex": "[.+]?",
+            "argument_regex": re.compile(r"[.+]?", re.IGNORECASE),
         },
         "highlight_group": {
             "commands": ["!hlg", "!highlightgroup", "!hlgroup"],
-            "argument_regex": ".+[\\s.+]?",
+            "argument_regex": re.compile(r".+[\s.+]?", re.IGNORECASE),
         },
         "add_to_group": {
             "commands": ["!hla", "!hladd", "!highlightadd"],
-            "argument_regex": ".+ .+",
+            "argument_regex": re.compile(r".+ .+", re.IGNORECASE),
         },
         "delete_from_group": {
             "commands": ["!hld", "!hldelete", "!highlightdelete"],
-            "argument_regex": ".+ .+",
+            "argument_regex": re.compile(r".+ .+", re.IGNORECASE),
         },
         "highlight": {
             "commands": ["!hl", "!highlight"],
-            "argument_regex": ".+",
+            "argument_regex": re.compile(r".+", re.IGNORECASE),
         },
     }
 

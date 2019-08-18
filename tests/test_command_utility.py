@@ -1,3 +1,4 @@
+import re
 from unittest import TestCase
 
 from chaanbot import command_utility
@@ -9,11 +10,11 @@ class TestCommandUtility(TestCase):
         operations = {
             "cmd1": {
                 "commands": ["!cmd1", "!cmd11"],
-                "argument_regex": "hello"
+                "argument_regex": re.compile("hello", re.IGNORECASE)
             },
             "cmd2": {
                 "commands": ["!cmd2", "!cmd22"],
-                "argument_regex": "test"
+                "argument_regex": re.compile("test", re.IGNORECASE)
             }
         }
 
@@ -29,7 +30,7 @@ class TestCommandUtility(TestCase):
     def test_match_operation_input_and_ignores_case(self):
         operation = {
             "commands": ["!cmd1", "!cmd11"],
-            "argument_regex": "hello"
+            "argument_regex": re.compile("hello", re.IGNORECASE)
         }
 
         self.assertTrue(command_utility.matches(operation, "!cmd1 hello"))

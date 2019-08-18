@@ -30,11 +30,11 @@ class DarkskyWeather:
     operations = {
         "weather": {
             "commands": ["!weather"],
-            "argument_regex": "[\\d( \\d)*]?"
+            "argument_regex": re.compile(r"[\d( \d)*]?", re.IGNORECASE)
         },
         "add_weather_coordinates": {
             "commands": ["!addcoordinates", "!addcoords", "!setcoordinates", "!setcoords"],
-            "argument_regex": "\\d{1,2}\\.?\\d+[,\\s]\\d{1,2}\\.?\\d"
+            "argument_regex": re.compile(r"\d{1,2}\.?\d+[,\s]\d{1,2}\.?\d", re.IGNORECASE)
             # Lat&Long are 2 digits followed by decimals
         }
     }
