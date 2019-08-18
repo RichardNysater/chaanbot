@@ -34,7 +34,7 @@ class DarkskyWeather:
         },
         "add_weather_coordinates": {
             "commands": ["!addcoordinates", "!addcoords", "!setcoordinates", "!setcoords"],
-            "argument_regex": re.compile(r"\d{1,2}\.?\d+[,\s]\d{1,2}\.?\d", re.IGNORECASE)
+            "argument_regex": re.compile(r"-?\d{1,2}\.?\d+(,|\s|,\s)-?\d{1,2}\.?\d", re.IGNORECASE)
             # Lat&Long are 2 digits followed by decimals
         }
     }
@@ -108,15 +108,16 @@ class DarkskyWeather:
             .format(self.darksky_api_url, self.api_key, latitude, longitude)
 
         contents = self.requests.get(url).json()
-        message_for_one_day = "{}: Min: {}, Max: {}. {}\n"
+        message_for_one_day = "{} Max: {}, Min: {}. {}\n"
         message = ""
         for days_from_today in days:
-            day = "Today" if days_from_today == "0" else "Tomorrow" if days_from_today == "1" else "{} days from now" \
-                .format(days_from_today)
+            day = "Today\t\t\t" if days_from_today == "0" \
+                else "Tomorrow\t\t" if days_from_today == "1" \
+                else "{} days from now\t".format(days_from_today)
             min_temp = contents["daily"]["data"][int(days_from_today)]["temperatureLow"]
             max_temp = contents["daily"]["data"][int(days_from_today)]["temperatureHigh"]
             summary = contents["daily"]["data"][int(days_from_today)]["summary"]
-            message += message_for_one_day.format(day, min_temp, max_temp, summary)
+            message += message_for_one_day.format(day, max_temp, min_temp, summary)
 
         room.send_text(message)
 
@@ -130,8 +131,8 @@ class DarkskyWeather:
         max_temp = str(contents["daily"]["data"][0]["temperatureHigh"])
         summary = contents["currently"]["summary"]
 
-        message = "Currently: {} (Min: {}, Max: {}). {}" \
-            .format(current_temp, min_temp, max_temp, summary)
+        message = "Currently: {} (Max: {}, Min: {}). {}" \
+            .format(current_temp, max_temp, min_temp, summary)
         room.send_text(message)
 
     def _add_coordinates(self, room, user_id, message):

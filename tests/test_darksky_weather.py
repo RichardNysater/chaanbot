@@ -38,7 +38,7 @@ class TestDarkskyWeather(TestCase):
     def test_send_todays_weather_if_no_argument(self):
         conn = Mock()
         latitude = 1.123
-        longitude = 12.123
+        longitude = -12.123
         self._mock_get_coordinates(conn, latitude, longitude)
 
         current_temp = 12
@@ -61,7 +61,7 @@ class TestDarkskyWeather(TestCase):
             }
         }
 
-        expected_send_message = "Currently: {} (Min: {}, Max: {}). {}".format(current_temp, min_temp, max_temp, summary)
+        expected_send_message = "Currently: {} (Max: {}, Min: {}). {}".format(current_temp, max_temp, min_temp, summary)
 
         self.darksky_weather.run(self.room, self.event, "!weather")
 
@@ -71,7 +71,7 @@ class TestDarkskyWeather(TestCase):
     def test_send_several_days_weather(self):
         conn = Mock()
         latitude = 1.123
-        longitude = 12.123
+        longitude = -12.123
         self._mock_get_coordinates(conn, latitude, longitude)
 
         min_temp1, min_temp2, min_temp3 = 45, 46, 47
@@ -101,9 +101,9 @@ class TestDarkskyWeather(TestCase):
             }
         }
 
-        today = "{}: Min: {}, Max: {}. {}".format("Today", min_temp1, max_temp1, summary1)
-        tomorrow = "{}: Min: {}, Max: {}. {}".format("Tomorrow", min_temp2, max_temp2, summary2)
-        third_day = "{}: Min: {}, Max: {}. {}".format("2 days from now", min_temp3, max_temp3, summary3)
+        today = "{} Max: {}, Min: {}. {}".format("Today\t\t\t", max_temp1, min_temp1, summary1)
+        tomorrow = "{} Max: {}, Min: {}. {}".format("Tomorrow\t\t", max_temp2, min_temp2, summary2)
+        third_day = "{} Max: {}, Min: {}. {}".format("2 days from now\t", max_temp3, min_temp3, summary3)
         expected_send_message = "{}\n{}\n{}\n".format(today, tomorrow, third_day)
 
         self.darksky_weather.run(self.room, self.event, "!weather 0 1 2")
@@ -148,9 +148,9 @@ class TestDarkskyWeather(TestCase):
         self._mock_add_coordinates(conn)
 
         latitude = 1.123
-        longitude = 5.13
+        longitude = -5.13
         expected_send_message = "Coordinates set to {},{}.".format(latitude, longitude)
-        self.darksky_weather.run(self.room, self.event, "!addcoordinates {},{}".format(latitude, longitude))
+        self.darksky_weather.run(self.room, self.event, "!addcoordinates {}, {}".format(latitude, longitude))
 
         self.room.send_text.assert_called_with(expected_send_message)
 
