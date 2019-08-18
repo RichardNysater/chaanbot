@@ -14,18 +14,3 @@ def run(self, room, event, message) -> bool:
 The run function must return either True or False, depending on whether a command in the message matched the module or not.
 The return value of the run function will be used to decide if other modules should be invoked on the message or not, so
 do not return True if other modules which do not always run should be invoked.
-
-4) Class may have a config dict. Consistency suggests to use the same format as other modules, though it is not required.
-    config = {
-        "always_run": Optional[bool]
-        # If always_run is True, the return value of other modules' run function is disregarded and module will always
-        # be invoked on the message. If always_run is missing it is assumed to be False.
-
-        "operations": { # Contains the operations the module can perform
-            "[NAME_OF_OPERATION]": { # Name of the operation this module performs, can be anything.
-                "commands": list[COMMAND_STRING], # A command is the first word of a message. E.g. "!alive"
-                "argument_regex": Optional[REGEX_STRING],
-                # If command takes an argument, this regex can be used to check if argument matches command.
-            }
-        }
-    }
