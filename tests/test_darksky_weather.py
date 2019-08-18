@@ -61,7 +61,8 @@ class TestDarkskyWeather(TestCase):
             }
         }
 
-        expected_send_message = "Currently: {} (Max: {}, Min: {}). {}".format(current_temp, max_temp, min_temp, summary)
+        expected_send_message = "Currently: {} (Max: {}, Min: {})\t{}".format(current_temp, max_temp, min_temp,
+                                                                              summary)
 
         self.darksky_weather.run(self.room, self.event, "!weather")
 
@@ -101,9 +102,9 @@ class TestDarkskyWeather(TestCase):
             }
         }
 
-        today = "{} Max: {}, Min: {}. {}".format("Today\t\t\t", max_temp1, min_temp1, summary1)
-        tomorrow = "{} Max: {}, Min: {}. {}".format("Tomorrow\t\t", max_temp2, min_temp2, summary2)
-        third_day = "{} Max: {}, Min: {}. {}".format("2 days from now\t", max_temp3, min_temp3, summary3)
+        today = "{} Max: {}, Min: {}\t{}".format("Today\t\t\t", max_temp1, min_temp1, summary1)
+        tomorrow = "{} Max: {}, Min: {}\t{}".format("Tomorrow\t\t", max_temp2, min_temp2, summary2)
+        third_day = "{} Max: {}, Min: {}\t{}".format("2 days from now\t", max_temp3, min_temp3, summary3)
         expected_send_message = "{}\n{}\n{}\n".format(today, tomorrow, third_day)
 
         self.darksky_weather.run(self.room, self.event, "!weather 0 1 2")

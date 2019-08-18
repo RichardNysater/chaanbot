@@ -108,7 +108,7 @@ class DarkskyWeather:
             .format(self.darksky_api_url, self.api_key, latitude, longitude)
 
         contents = self.requests.get(url).json()
-        message_for_one_day = "{} Max: {}, Min: {}. {}\n"
+        message_for_one_day = "{} Max: {}, Min: {}\t{}\n"
         message = ""
         for days_from_today in days:
             day = "Today\t\t\t" if days_from_today == "0" \
@@ -131,7 +131,7 @@ class DarkskyWeather:
         max_temp = str(contents["daily"]["data"][0]["temperatureHigh"])
         summary = contents["currently"]["summary"]
 
-        message = "Currently: {} (Max: {}, Min: {}). {}" \
+        message = "Currently: {} (Max: {}, Min: {})\t{}" \
             .format(current_temp, max_temp, min_temp, summary)
         room.send_text(message)
 
