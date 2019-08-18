@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
 
-import importlib
 import logging
 from time import sleep
-
-import pkg_resources
 
 logger = logging.getLogger("chaanbot")
 
 
 class Client:
+    """ Main class for the bot. The client receives messages, joins rooms etc. """
+
     blacklisted_room_ids, whitelisted_room_ids, loaded_modules, allowed_inviters = [], [], [], []
 
-    def __init__(self, config, matrix, database, requests):
+    def __init__(self, modules_runner, config, matrix):
         try:
             self._load_environment(config)
-            try:
-                self._load_modules(config, matrix, database, requests)
-            except IOError as e:
-                logger.warning("Could not load module(s) due to: {}".format(str(e)), e)
+            self.modules_runner = modules_runner
             self.config = config
             self.matrix = matrix
             logger.info("Chaanbot successfully initialized.")
@@ -35,42 +31,6 @@ class Client:
         logger.info("Listeners added, now running...")
         while True:
             sleep(1)
-
-    def _load_modules(self, config, matrix, database, requests):
-        files = pkg_resources.resource_listdir("chaanbot", "modules")
-        modules = [file.replace('.py', '') for file in files if '.py' in file and '__' not in file]
-        logger.info("Existing modules: {}".format(modules))
-        modules_to_load = list(filter(lambda cur_module_file: self._is_enabled(cur_module_file), modules))
-        if len(modules_to_load) == len(modules):
-            logger.info("Loading all modules")
-        else:
-            logger.info("Loading modules: {}. Others are not enabled or explicitly disabled.".format(modules_to_load))
-        for module_to_load in modules_to_load:
-            self.load_module(config, database, matrix, module_to_load, requests)
-
-    def load_module(self, config, database, matrix, module_to_load, requests):
-        logger.debug("Importing module: {}".format(module_to_load))
-        class_name = ''.join(word.title() for word in module_to_load.split('_'))
-        module = importlib.import_module("chaanbot.modules." + module_to_load)
-        module_class = getattr(module, class_name)
-        instance = self._instantiate_module_class(module_class, config, matrix, database, requests)
-        instance.always_run = instance.always_run if hasattr(instance, "always_run") else False
-        self.loaded_modules.append(instance)
-
-    def _is_enabled(self, module_name) -> bool:
-        if hasattr(self, "disabled_modules"):
-            if module_name in self.disabled_modules:
-                return False
-        if hasattr(self, "enabled_modules"):
-            return module_name in self.enabled_modules
-        return True
-
-    @staticmethod
-    def _instantiate_module_class(module_class, config, matrix, database, requests):
-        try:
-            return module_class(config, matrix, database, requests)
-        except TypeError:
-            return module_class()
 
     def _load_environment(self, config):
         allowed_inviters = config.get("chaanbot", "allowed_inviters", fallback=None)
@@ -167,19 +127,7 @@ class Client:
         if event["content"]["msgtype"] != "m.text":
             return
         message = event["content"]["body"].strip()
-        self._run_modules(event, room, message)
-
-    def _run_modules(self, event, room, message):
-        logger.info("Running {} modules on message".format(len(self.loaded_modules)))
-        module_processed_message = False
-        for module in self.loaded_modules:
-            if not module_processed_message or module.config["always_run"]:
-                logger.debug("Running module {}".format(module))
-                if module.run(room, event, message):
-                    module_processed_message = True
-                    logger.debug("Module processed message successfully")
-            else:
-                logger.debug("Module {} did not run as another module has already processed message".format(module))
+        self.modules_runner.run(event, room, message)
 
     @staticmethod
     def _on_leave(room_id, state):

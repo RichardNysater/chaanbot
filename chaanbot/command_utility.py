@@ -1,3 +1,5 @@
+""" Help methods for commands to the bot """
+
 import logging
 import re
 

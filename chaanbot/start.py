@@ -13,6 +13,8 @@ from matrix_client.client import MatrixClient
 from chaanbot.client import Client
 from chaanbot.database import Database
 from chaanbot.matrix import Matrix
+from chaanbot.module_loader import ModuleLoader
+from chaanbot.modules_runner import ModulesRunner
 
 logger = logging.getLogger("start")
 
@@ -30,7 +32,9 @@ def main():
         matrix_client = _connect(config)
         matrix = Matrix(matrix_client)
         database = Database(config.get("chaanbot", "sqlite_database_location", fallback=None))
-        chaanbot = Client(config, matrix, database, requests)
+        module_loader = ModuleLoader(database, requests)
+        modules_runner = ModulesRunner(config, matrix, module_loader)
+        chaanbot = Client(modules_runner, config, matrix)
         chaanbot.run(lambda exception: _connect(config))
     else:
         logger.error("Could not read config file")

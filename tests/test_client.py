@@ -19,13 +19,12 @@ class TestClient(TestCase):
         return None
 
     def test_load_environment_on_initialization(self):
+        modules_runner = Mock()
         matrix = Mock()
-        database = Mock()
-        requests = Mock()
         config = Mock()
         config.get.side_effect = self.get_config_side_effect
 
-        self.client = Client(config, matrix, database, requests)
+        self.client = Client(modules_runner, config, matrix)
 
         config.get.assert_any_call("chaanbot", "allowed_inviters", fallback=None)
         config.get.assert_any_call("chaanbot", "blacklisted_room_ids", fallback=None)

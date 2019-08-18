@@ -5,6 +5,8 @@ logger = logging.getLogger("matrix_utility")
 
 
 class Matrix:
+    """ Contains the matrix client and help methods """
+
     def __init__(self, matrix_client):
         self.matrix_client = matrix_client
 
