@@ -36,3 +36,13 @@ listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:exam
 [darksky_weather]
 # API key for darksky.net. Go to https://darksky.net/dev/ and create an account for up to 1000 calls free per day
 #api_key =
+
+[chan_save]
+# Folder to save 4chan media in. E.g. /srv/4chan/
+# If set (and chan_save enabled) the bot will save 4chan media files to the location.
+# Only ever enable if bot is running on server with trusted users, for somewhat obvious reasons.
+#save_dirpath =
+
+# URL to where saved media is accessible. E.g. https://example.com/i/
+# If enabled, bot will link to the saved media file. E.g. https://example.com/i/92cf8f9a-c1a1-11e9-81e1-2c4d54685def.png
+#url_to_access_saved_files =

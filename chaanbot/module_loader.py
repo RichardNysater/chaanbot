@@ -36,9 +36,12 @@ class ModuleLoader:
         """ Get files in the chaanbot/module folder and its subfolders"""
         files = pkg_resources.resource_listdir("chaanbot", "modules")
         all_files = files
+        logger.debug("All files in modules folder are: {}".format(all_files))
         for file in files:
             if pkg_resources.isdir("chaanbot/modules/{}".format(file)):
+                logger.debug("{} is a folder".format(file))
                 subfolder_modules = pkg_resources.resource_listdir("chaanbot", "modules/{}".format(file))
+                logger.debug("Got files from inside folder: {}".format(subfolder_modules))
                 for subfolder_module in subfolder_modules:
                     all_files.append("{}/{}".format(file, subfolder_module))
         return all_files

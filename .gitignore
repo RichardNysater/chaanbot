@@ -4,6 +4,7 @@
 .#*
 *.deb
 *.egg
+*.eggs
 *.egg-info
 *.lock
 *.pyc
