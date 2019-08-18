@@ -45,4 +45,5 @@ listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:exam
 
 # URL to where saved media is accessible. E.g. https://example.com/i/
 # If enabled, bot will link to the saved media file. E.g. https://example.com/i/92cf8f9a-c1a1-11e9-81e1-2c4d54685def.png
+# Consider adding 4chan cdn to url_preview_ip_range_blacklist in homeserver.yaml to avoid double previews (if own server)
 #url_to_access_saved_files =

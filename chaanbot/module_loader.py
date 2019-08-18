@@ -10,9 +10,19 @@ logger = logging.getLogger("module_loader")
 class ModuleLoader:
     """ Responsible for loading modules """
 
-    def __init__(self, database, requests):
+    def __init__(self, config, database, requests):
         self.database = database
         self.requests = requests
+
+        enabled_modules = config.get("modules", "enabled", fallback=None)
+        if enabled_modules:
+            self.enabled_modules = [str.strip(module_name) for module_name in enabled_modules.split(",")]
+            logger.debug("Enabled modules: {}".format(self.enabled_modules))
+
+        disabled_modules = config.get("modules", "disabled", fallback=None)
+        if disabled_modules:
+            self.disabled_modules = [str.strip(module_name) for module_name in disabled_modules.split(",")]
+            logger.debug("Disabled modules: {}".format(self.disabled_modules))
 
     def load_modules(self, config, matrix) -> List[Any]:
         """ Load modules in the module package, as specified by enabled and disabled in config file,
@@ -35,7 +45,7 @@ class ModuleLoader:
     def _get_files_in_module_dirs() -> List[str]:
         """ Get files in the chaanbot/module folder and its subfolders"""
         files = pkg_resources.resource_listdir("chaanbot", "modules")
-        all_files = files
+        all_files = files.copy()
         logger.debug("All files in modules folder are: {}".format(all_files))
         for file in files:
             if pkg_resources.isdir("chaanbot/modules/{}".format(file)):

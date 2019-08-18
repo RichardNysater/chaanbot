@@ -11,10 +11,10 @@ class Client:
 
     blacklisted_room_ids, whitelisted_room_ids, loaded_modules, allowed_inviters = [], [], [], []
 
-    def __init__(self, modules_runner, config, matrix):
+    def __init__(self, module_runner, config, matrix):
         try:
             self._load_environment(config)
-            self.modules_runner = modules_runner
+            self.module_runner = module_runner
             self.config = config
             self.matrix = matrix
             logger.info("Chaanbot successfully initialized.")
@@ -47,16 +47,6 @@ class Client:
         if whitelisted_rooms:
             self.whitelisted_room_ids = [str.strip(room) for room in whitelisted_rooms.split(",")]
             logger.debug("Whitelisted rooms: {}".format(self.whitelisted_room_ids))
-
-        enabled_modules = config.get("modules", "enabled", fallback=None)
-        if enabled_modules:
-            self.enabled_modules = [str.strip(module_name) for module_name in enabled_modules.split(",")]
-            logger.debug("Enabled modules: {}".format(self.enabled_modules))
-
-        disabled_modules = config.get("modules", "disabled", fallback=None)
-        if disabled_modules:
-            self.disabled_modules = [str.strip(module_name) for module_name in disabled_modules.split(",")]
-            logger.debug("Disabled modules: {}".format(self.disabled_modules))
 
     def _join_rooms(self, config):
         logger.debug("Available rooms: " + str(list(self.matrix.matrix_client.rooms.keys())))
@@ -127,7 +117,7 @@ class Client:
         if event["content"]["msgtype"] != "m.text":
             return
         message = event["content"]["body"].strip()
-        self.modules_runner.run(event, room, message)
+        self.module_runner.run(event, room, message)
 
     @staticmethod
     def _on_leave(room_id, state):

@@ -1,6 +1,6 @@
 import logging
 
-logger = logging.getLogger("modules_runner")
+logger = logging.getLogger("module_runner")
 
 
 class ModulesRunner:
