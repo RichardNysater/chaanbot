@@ -32,8 +32,8 @@ class TestDarkskyWeather(TestCase):
         self.assertFalse(ran)
 
     def test_config_has_properties(self):
-        self.assertLess(0, len(self.darksky_weather.config.get("operations")))
-        self.assertFalse(self.darksky_weather.config.get("always_run"))
+        self.assertLess(0, len(self.darksky_weather.operations))
+        self.assertFalse(self.darksky_weather.always_run)
 
     def test_send_todays_weather_if_no_argument(self):
         conn = Mock()

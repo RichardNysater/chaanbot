@@ -40,7 +40,7 @@ setuptools.setup(
     install_requires=["matrix-client", "appdirs", "requests"],
     package_data={'': ['chaanbot.cfg.sample']},
     classifiers=[
-        "Development Status :: 2 - Pre-Alpha",
+        "Development Status :: 4 - Beta",
         "Topic :: Communications :: Chat",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",

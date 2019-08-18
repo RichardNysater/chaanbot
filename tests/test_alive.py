@@ -20,8 +20,8 @@ class TestAlive(TestCase):
 
     def test_config_has_properties(self):
         alive_class = Alive()
-        self.assertLess(0, len(alive_class.config.get("operations")))
-        self.assertFalse(alive_class.config.get("always_run"))
+        self.assertLess(0, len(alive_class.operations))
+        self.assertFalse(alive_class.always_run)
 
     def test_should_run_returns_true_if_commands_match(self):
         alive_class = Alive()

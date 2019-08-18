@@ -30,3 +30,4 @@ chaanbot.cfg
 /docs/build/
 /htmlcov
 /pip-wheel-metadata/
+/chaanbot/modules/private/

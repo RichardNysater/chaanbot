@@ -54,7 +54,7 @@ class Client:
         module = importlib.import_module("chaanbot.modules." + module_to_load)
         module_class = getattr(module, class_name)
         instance = self._instantiate_module_class(module_class, config, matrix, database, requests)
-        instance.config["always_run"] = instance.config.get("always_run", False)
+        instance.always_run = instance.always_run if hasattr(instance, "always_run") else False
         self.loaded_modules.append(instance)
 
     def _is_enabled(self, module_name) -> bool:

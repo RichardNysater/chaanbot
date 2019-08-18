@@ -5,7 +5,7 @@ from chaanbot import command_utility
 
 class TestCommandUtility(TestCase):
 
-    def test_match_command_input(self):
+    def test_match_command_input_and_ignores_case(self):
         operations = {
             "cmd1": {
                 "commands": ["!cmd1", "!cmd11"],
@@ -21,8 +21,12 @@ class TestCommandUtility(TestCase):
         self.assertTrue(command_utility.matches(operations, "!cmd11 hello"))
         self.assertTrue(command_utility.matches(operations, "!cmd2 test"))
         self.assertTrue(command_utility.matches(operations, "!cmd22 test"))
+        self.assertTrue(command_utility.matches(operations, "!cmD1 hello"))
+        self.assertTrue(command_utility.matches(operations, "!CMD11 hello"))
+        self.assertTrue(command_utility.matches(operations, "!Cmd2 test"))
+        self.assertTrue(command_utility.matches(operations, "!cMd22 test"))
 
-    def test_match_operation_input(self):
+    def test_match_operation_input_and_ignores_case(self):
         operation = {
             "commands": ["!cmd1", "!cmd11"],
             "argument_regex": "hello"
@@ -30,6 +34,8 @@ class TestCommandUtility(TestCase):
 
         self.assertTrue(command_utility.matches(operation, "!cmd1 hello"))
         self.assertTrue(command_utility.matches(operation, "!cmd11 hello"))
+        self.assertTrue(command_utility.matches(operation, "!cMd1 hello"))
+        self.assertTrue(command_utility.matches(operation, "!CMD11 hello"))
 
     def test_not_match_command_input(self):
         operations = {
@@ -55,6 +61,6 @@ class TestCommandUtility(TestCase):
         self.assertEqual(expected_command, command_utility.get_command(message))
         self.assertEqual(expected_argument, command_utility.get_argument(message))
 
-    def test_get_Empty_string_if_no_argument(self):
+    def test_get_empty_string_if_no_argument(self):
         message_without_argument = "!test"
-        self.assertEquals("", command_utility.get_argument(message_without_argument))
+        self.assertEqual("", command_utility.get_argument(message_without_argument))

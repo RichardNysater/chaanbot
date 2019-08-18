@@ -17,12 +17,10 @@ logger = logging.getLogger("ping")
 
 
 class Alive:
-    config = {
-        "always_run": False,
-        "operations": {
-            "alive": {
-                "commands": ["!alive", "!running"]
-            }
+    always_run = False
+    operations = {
+        "alive": {
+            "commands": ["!alive", "!running"]
         }
     }
 
@@ -33,4 +31,4 @@ class Alive:
         return False
 
     def should_run(self, message) -> bool:
-        return command_utility.matches(self.config["operations"], message)
+        return command_utility.matches(self.operations, message)

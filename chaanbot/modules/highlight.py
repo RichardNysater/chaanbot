@@ -24,30 +24,28 @@ logger = logging.getLogger("highlight")
 
 
 class Highlight:
-    config = {
-        "always_run": False,
-        "operations": {
-            "highlight_all": {
-                "commands": ["!hlall", "!highlightall"],
-                "argument_regex": "[.+]?",
-            },
-            "highlight_group": {
-                "commands": ["!hlg", "!highlightgroup", "!hlgroup"],
-                "argument_regex": ".+[\\s.+]?",
-            },
-            "add_to_group": {
-                "commands": ["!hla", "!hladd", "!highlightadd"],
-                "argument_regex": ".+ .+",
-            },
-            "delete_from_group": {
-                "commands": ["!hld", "!hldelete", "!highlightdelete"],
-                "argument_regex": ".+ .+",
-            },
-            "highlight": {
-                "commands": ["!hl", "!highlight"],
-                "argument_regex": ".+",
-            },
-        }
+    always_run = False
+    operations = {
+        "highlight_all": {
+            "commands": ["!hlall", "!highlightall"],
+            "argument_regex": "[.+]?",
+        },
+        "highlight_group": {
+            "commands": ["!hlg", "!highlightgroup", "!hlgroup"],
+            "argument_regex": ".+[\\s.+]?",
+        },
+        "add_to_group": {
+            "commands": ["!hla", "!hladd", "!highlightadd"],
+            "argument_regex": ".+ .+",
+        },
+        "delete_from_group": {
+            "commands": ["!hld", "!hldelete", "!highlightdelete"],
+            "argument_regex": ".+ .+",
+        },
+        "highlight": {
+            "commands": ["!hl", "!highlight"],
+            "argument_regex": ".+",
+        },
     }
 
     def __init__(self, config, matrix, database, requests):
@@ -69,19 +67,19 @@ class Highlight:
 
     def run(self, room, event, message) -> bool:
         if self._should_run(message):
-            if command_utility.matches(self.config["operations"]["highlight_all"], message):
+            if command_utility.matches(self.operations["highlight_all"], message):
                 logger.debug("Highlighting all")
                 self._highlight_all(room, message)
-            elif command_utility.matches(self.config["operations"]["highlight_group"], message):
+            elif command_utility.matches(self.operations["highlight_group"], message):
                 logger.debug("Highlighting group")
                 self._highlight_group(room, message)
-            elif command_utility.matches(self.config["operations"]["highlight"], message):
+            elif command_utility.matches(self.operations["highlight"], message):
                 logger.debug("Highlighting")
                 self._highlight(room, message)
-            elif command_utility.matches(self.config["operations"]["add_to_group"], message):
+            elif command_utility.matches(self.operations["add_to_group"], message):
                 logger.debug("Adding to group")
                 self._add_or_create_group(room, message)
-            elif command_utility.matches(self.config["operations"]["delete_from_group"], message):
+            elif command_utility.matches(self.operations["delete_from_group"], message):
                 logger.debug("Deleting from group")
                 self._delete_from_group(room, message)
             else:
@@ -90,7 +88,7 @@ class Highlight:
         return False
 
     def _should_run(self, message) -> bool:
-        return self.database and command_utility.matches(self.config["operations"], message)
+        return self.database and command_utility.matches(self.operations, message)
 
     def _highlight_all(self, room, message):
         users = room.get_joined_members()
