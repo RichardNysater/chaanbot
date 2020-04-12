@@ -67,6 +67,7 @@ python3 -m pip install -U chaanbot
 ```
 
 # TODO
+* Port over to matrix-nio instead of matrix-client
 * Improve error handling
 * Integration tests and better test coverage
 * More modules

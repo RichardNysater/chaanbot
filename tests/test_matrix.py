@@ -1,13 +1,31 @@
 from unittest import TestCase, mock
 from unittest.mock import Mock
 
-from chaanbot import matrix
+from chaanbot.matrix import Matrix
 
 
 class TestMatrixUtility(TestCase):
     def setUp(self):
+        config = Mock()
+        config.get.return_value = None
         matrix_client = Mock()
-        self.matrix = matrix.Matrix(matrix_client)
+        self.matrix = Matrix(config, matrix_client)
+
+    def test_initialize_black_and_whitelisted_rooms(self):
+        config = Mock()
+        config.get.side_effect = self._get_config_side_effect
+        matrix_client = Mock()
+        matrix = Matrix(config, matrix_client)
+        self.assertEqual(["whitelisted"], matrix.whitelisted_room_ids)
+        self.assertEqual(["blacklisted"], matrix.blacklisted_room_ids)
+
+    def _get_config_side_effect(*args, **kwargs):
+        if args[1] == "chaanbot":
+            if args[2] == "blacklisted_room_ids":
+                return "blacklisted"
+            elif args[2] == "whitelisted_room_ids":
+                return "whitelisted"
+        return None
 
     def test_get_room_by_room_id(self):
         room_id = "id"

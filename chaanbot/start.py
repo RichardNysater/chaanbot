@@ -14,7 +14,7 @@ from chaanbot.client import Client
 from chaanbot.database import Database
 from chaanbot.matrix import Matrix
 from chaanbot.module_loader import ModuleLoader
-from chaanbot.module_runner import ModulesRunner
+from chaanbot.module_runner import ModuleRunner
 
 logger = logging.getLogger("start")
 
@@ -30,10 +30,10 @@ def main():
     config = configparser.ConfigParser()
     if config.read(config_path):
         matrix_client = _connect(config)
-        matrix = Matrix(matrix_client)
+        matrix = Matrix(config, matrix_client)
         database = Database(config.get("chaanbot", "sqlite_database_location", fallback=None))
         module_loader = ModuleLoader(config, database, requests)
-        module_runner = ModulesRunner(config, matrix, module_loader)
+        module_runner = ModuleRunner(config, matrix, module_loader)
         chaanbot = Client(module_runner, config, matrix)
         chaanbot.run(lambda exception: _connect(config))
     else:

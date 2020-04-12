@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger("module_runner")
 
 
-class ModulesRunner:
+class ModuleRunner:
     """ Responsible for running modules on messages in rooms """
 
     def __init__(self, config, matrix, module_loader):
@@ -16,7 +16,7 @@ class ModulesRunner:
         logger.info("Running {} modules on message".format(len(self.loaded_modules)))
         module_processed_message = False
         for module in self.loaded_modules:
-            if not module_processed_message or module.config["always_run"]:
+            if not module_processed_message or module.always_run:
                 logger.debug("Running module {}".format(module))
                 if module.run(room, event, message):
                     module_processed_message = True
