@@ -14,7 +14,7 @@ Usage example:
 Would results in:
 "Bot: @Richard:example.com @Admin:example.com: anyone comfortable with Perl?"
 
-Note: Groups are room-dependent.
+Note: Groups are room-dependent and case-insensitive.
 """
 import logging
 import re
@@ -114,7 +114,7 @@ class Highlight:
             room.send_text("Correct syntax is !hlg [group] [optional text].")
             return
         arguments = argument.split(None, 1)
-        group = arguments[0]
+        group = arguments[0].lower()
 
         members = self._get_members(room, group)
         if members:
@@ -135,7 +135,7 @@ class Highlight:
             room.send_text("Correct syntax is !hl [group] [optional text].")
             return
         arguments = argument.split(None, 1)
-        group = arguments[0]
+        group = arguments[0].lower()
         members = self._get_members(room, group)
         member_user_ids = [self.matrix.get_user(room, member).user_id for member in members]
         members = list(filter(lambda user_id: self.matrix.is_online(user_id), member_user_ids))
@@ -153,7 +153,7 @@ class Highlight:
 
     def _add_or_create_group(self, room, message):
         arguments = command_utility.get_argument(message).split()
-        group = arguments[0]
+        group = arguments[0].lower()
         users_to_add = arguments[1:]
         logger.debug("User wants to add {} to {}".format(users_to_add, group))
         if group and len(users_to_add) > 0:
@@ -188,7 +188,7 @@ class Highlight:
 
     def _delete_from_group(self, room, message):
         arguments = command_utility.get_argument(message).split()
-        group = arguments[0]
+        group = arguments[0].lower()
         members_to_remove = arguments[1:]
         logger.debug("User wants to remove {} from {}".format(members_to_remove, group))
         if group and len(members_to_remove) > 0:

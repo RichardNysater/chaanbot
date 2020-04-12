@@ -110,13 +110,13 @@ class TestHighlight(TestCase):
         self.room.send_text.assert_not_called()
         conn.execute.assert_not_called()
 
-    def test_dont_highlight_group_if_none_to_highlight(self):
+    def test_dont_highlight_case_insensitive_group_if_none_to_highlight(self):
         conn = Mock()
         self._mock_get_member(conn, [])
 
         expected_send_message = "Group \"group\" does not exist"
 
-        self.highlight.run(self.room, None, "!hlg group helloes")
+        self.highlight.run(self.room, None, "!hlg GRouP helloes")
 
         self.room.send_text.assert_called_with(expected_send_message)
         conn.execute.assert_called_once()
@@ -201,14 +201,14 @@ class TestHighlight(TestCase):
         self.room.send_text.assert_called_with(expected_send_message)
         conn.execute.assert_called_once()
 
-    def test_successfully_adding_members_to_group(self):
+    def test_successfully_adding_members_to_case_insensitive_group(self):
         conn = Mock()
         self._mock_is_in_group(conn, None)
         self._mock_get_user("user1")
 
         expected_send_message = "Added \"user1\" to group \"group\""
 
-        self.highlight.run(self.room, None, "!hla group user1")
+        self.highlight.run(self.room, None, "!hla GRouP user1")
 
         self.room.send_text.assert_called_with(expected_send_message)
 
@@ -232,14 +232,14 @@ class TestHighlight(TestCase):
 
         self.room.send_text.assert_called_with(expected_send_message)
 
-    def test_successfully_deleting_members_from_group(self):
+    def test_successfully_deleting_members_from_case_insensitive_group(self):
         conn = Mock()
         self._mock_is_in_group(conn, "user1")
         self._mock_get_user("user1")
 
         expected_send_message = "Removed \"user1\" from group \"group\""
 
-        self.highlight.run(self.room, None, "!hld group user1")
+        self.highlight.run(self.room, None, "!hld gROUp user1")
 
         self.room.send_text.assert_called_with(expected_send_message)
 
