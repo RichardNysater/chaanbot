@@ -55,7 +55,7 @@ class ChanSave:
                 if file_extension:
                     filepath, filename = self._save_media(room, event["sender"], link, file_extension)
                     if hasattr(self, "url_to_access_saved_files"):
-                        room.send_text("File saved to {}{}.".format(self.url_to_access_saved_files, filename))
+                        room.send_text("File saved to {}{} .".format(self.url_to_access_saved_files, filename))
 
         return False  # ChanSave does not use commands and should not return that it has handled one
 

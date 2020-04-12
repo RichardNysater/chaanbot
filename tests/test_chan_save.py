@@ -9,34 +9,30 @@ class TestChanSave(TestCase):
     save_dirpath = "/dir/to/save"
     event = {"sender": "user_id"}
 
-    @patch('os.access')
+    @patch('os.access', return_value=True)
     def setUp(self, mock_os_access) -> None:
-        mock_os_access.return_value = True
         config = Mock()
         config.get.side_effect = self.get_config_side_effect
         self.requests = Mock()
         self.room = Mock()
         self.chan_save = ChanSave(config, Mock(), Mock(), self.requests)
 
-    @patch('os.access')
+    @patch('os.access', return_value=True)
     def test_disabled_if_no_save_dirpath(self, mock_os_access):
-        mock_os_access.return_value = True
         config = Mock()
         config.get.side_effect = self.get_config_side_effect_without_save_dirpath
         chan_save = ChanSave(config, Mock(), Mock(), self.requests)
         self.assertTrue(chan_save.disabled)
 
-    @patch('os.access')
+    @patch('os.access', return_value=True)
     def test_enabled_if_no_url_to_access_saved_files(self, mock_os_access):
-        mock_os_access.return_value = True
         config = Mock()
         config.get.side_effect = self.get_config_side_effect_without_url_to_access_saved_files
         chan_save = ChanSave(config, Mock(), Mock(), self.requests)
         self.assertFalse(hasattr(chan_save, "disabled"))
 
-    @patch('os.access')
+    @patch('os.access', return_value=False)  # No write access
     def test_disabled_if_no_write_access(self, mock_os_access):
-        mock_os_access.return_value = False
         config = Mock()
         config.get.side_effect = self.get_config_side_effect
         chan_save = ChanSave(config, Mock(), Mock(), self.requests)
@@ -55,16 +51,15 @@ class TestChanSave(TestCase):
         mock_uuid.return_value = uuid
         self.chan_save.run(self.room, self.event, "https://4chan.org/g/stallman.jpg")
 
-        expected_message = "File saved to {}{}{}.".format(self.chan_save.url_to_access_saved_files, uuid, ".jpg")
+        expected_message = "File saved to {}{}{} .".format(self.chan_save.url_to_access_saved_files, uuid, ".jpg")
         self.room.send_text.assert_called_with(expected_message)
         self.requests.get.assert_called_once()
         mock_open().write.assert_called_once()
 
     @patch("uuid.uuid1")
     @patch("builtins.open", new_callable=mock_open)
-    @patch('os.access')
+    @patch('os.access', return_value=True)
     def test_save_4chan_media_and_dont_send_URL(self, mock_os_access, mock_open, mock_uuid):
-        mock_os_access.return_value = True
         config = Mock()
         config.get.side_effect = self.get_config_side_effect_without_url_to_access_saved_files
         chan_save = ChanSave(config, Mock(), Mock(), self.requests)
