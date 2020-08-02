@@ -3,7 +3,7 @@
 A python 3 [matrix](https://matrix.org) bot using [matrix-python-sdk](https://github.com/matrix-org/matrix-python-sdk).
 The bot is extensible and currently provides:
 * Highlight module allows users to easily notify groups of users.
-E.g. "!hl javadevs spring-boot vs micronaut?" would higlight any user in the javadevs group.
+E.g. "!hl javadevs spring-boot vs micronaut?" would highlight/notify any user in the javadevs group.
 * Weather module allows users to broadcast weather reports.
 * More to come!
 

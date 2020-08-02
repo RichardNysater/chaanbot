@@ -1,18 +1,18 @@
-""" The Highlight module allows users to easily notify groups of users in a room if they're online.
+""" The Highlight module allows users to create groups of users in a room and highlight/notify them.
+For example, lets users easily ask everyone who plays game X if they want to play (!hl chess Anyone up for a game?)
 
 Available commands:
 !hla [GROUP] [USER1] [USER2] ...    - Adds one or more users to a group
 !hld [GROUP] [USER1] [USER2] ...    - Delete one or more users from a group
-!hl [GROUP] [OPTIONAL TEXT]         - Notify online users in group
-!hlall [OPTIONAL TEXT]              - Notify all online users in room
-!hlg [GROUP] [OPTIONAL TEXT]        - Notify all users in group regardless of online status
+!hl [GROUP] [OPTIONAL TEXT]         - Notify users in group
+!hlall [OPTIONAL TEXT]              - Notify all users in room
 
 Usage example:
-!hla developers richard admin
+!hla developers richard carl
 !hl developers anyone comfortable with Perl?
 
 Would results in:
-"Bot: @Richard:example.com @Admin:example.com: anyone comfortable with Perl?"
+"Bot: @Richard:example.com @Carl:example.com: anyone comfortable with Perl?"
 
 Note: Groups are room-dependent and case-insensitive.
 """
@@ -30,10 +30,6 @@ class Highlight:
         "highlight_all": {
             "commands": ["!hlall", "!highlightall"],
             "argument_regex": re.compile(r"[.+]?", re.IGNORECASE),
-        },
-        "highlight_group": {
-            "commands": ["!hlg", "!highlightgroup", "!hlgroup"],
-            "argument_regex": re.compile(r".+[\s.+]?", re.IGNORECASE),
         },
         "add_to_group": {
             "commands": ["!hla", "!hladd", "!highlightadd"],
@@ -70,13 +66,10 @@ class Highlight:
         if self._should_run(message):
             if command_utility.matches(self.operations["highlight_all"], message):
                 logger.debug("Highlighting all")
-                self._highlight_all(room, message)
-            elif command_utility.matches(self.operations["highlight_group"], message):
-                logger.debug("Highlighting group")
-                self._highlight_group(room, message)
+                self._highlight_all(room, event["sender"], message)
             elif command_utility.matches(self.operations["highlight"], message):
                 logger.debug("Highlighting")
-                self._highlight(room, message)
+                self._highlight(room, event["sender"], message)
             elif command_utility.matches(self.operations["add_to_group"], message):
                 logger.debug("Adding to group")
                 self._add_or_create_group(room, message)
@@ -91,13 +84,12 @@ class Highlight:
     def _should_run(self, message) -> bool:
         return self.database and command_utility.matches(self.operations, message)
 
-    def _highlight_all(self, room, message):
-        users = room.get_joined_members()
+    def _highlight_all(self, room, sender_user_id, message):
+        user_ids = [user.user_id for user in room.get_joined_members()]
         argument = command_utility.get_argument(message)
-        online_user_ids = [user.user_id for user in
-                           (filter(lambda user: self.matrix.is_online(user.user_id), users))]
-        if online_user_ids:
-            message = ", ".join(online_user_ids)
+        user_ids = self._remove_element(user_ids, sender_user_id)
+        if user_ids:
+            message = ", ".join(user_ids)
             logger.debug("Highlighting: {}".format(message))
             if argument:
                 room.send_text(message + ": " + argument)
@@ -105,43 +97,19 @@ class Highlight:
                 room.send_text(message)
         else:
             logger.debug("No users to highlight in room {}".format(room.room_id))
-            room.send_text("No online users to highlight")
+            room.send_text("No users to highlight")
         return
 
-    def _highlight_group(self, room, message):
-        argument = command_utility.get_argument(message)
-        if not argument:
-            room.send_text("Correct syntax is !hlg [group] [optional text].")
-            return
-        arguments = argument.split(None, 1)
-        group = arguments[0].lower()
-
-        members = self._get_members(room, group)
-        if members:
-            members = ", ".join(members)
-            logger.debug("Highlighting {}".format(members))
-            if len(arguments) > 1:
-                argument = arguments[1]
-                room.send_text(members + ": " + argument)
-            else:
-                room.send_text(members)
-        else:
-            room.send_text("Group \"{}\" does not exist".format(group))
-        return
-
-    def _highlight(self, room, message):
+    def _highlight(self, room, sender_user_id, message):
         argument = command_utility.get_argument(message)
         if not argument:
             room.send_text("Correct syntax is !hl [group] [optional text].")
             return
         arguments = argument.split(None, 1)
         group = arguments[0].lower()
-        members = self._get_members(room, group)
-        member_user_ids = [self.matrix.get_user(room, member).user_id for member in members]
-        members = list(filter(lambda user_id: self.matrix.is_online(user_id), member_user_ids))
-
-        if members:
-            members = ", ".join(members)
+        member_user_ids = self._get_member_user_ids_except_sender(room, group, sender_user_id)
+        if member_user_ids:
+            members = ", ".join(member_user_ids)
 
             if len(arguments) > 1:
                 argument = arguments[1]
@@ -149,7 +117,7 @@ class Highlight:
             else:
                 room.send_text(members)
         else:
-            room.send_text("Group \"{}\" does not have any online members to highlight".format(group))
+            room.send_text("Group \"{}\" does not have any members to highlight".format(group))
 
     def _add_or_create_group(self, room, message):
         arguments = command_utility.get_argument(message).split()
@@ -234,3 +202,10 @@ class Highlight:
                 self.database.connect().execute(
                     "SELECT member FROM highlight_groups WHERE room_id = ? AND group_name = ?",
                     (room.room_id, group)).fetchall()]
+
+    def _get_member_user_ids_except_sender(self, room, group, sender_user_id) -> list:
+        member_user_ids = [self.matrix.get_user(room, member).user_id for member in self._get_members(room, group)]
+        return self._remove_element(member_user_ids, sender_user_id)
+
+    def _remove_element(self, list_to_remove_from, element_to_remove):
+        return list(filter(lambda element: element != element_to_remove, list_to_remove_from))
