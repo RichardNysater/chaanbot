@@ -1,10 +1,10 @@
-from unittest import TestCase, mock
+from unittest import mock, IsolatedAsyncioTestCase
 from unittest.mock import Mock
 
 from chaanbot.matrix import Matrix
 
 
-class TestMatrixUtility(TestCase):
+class TestMatrixUtility(IsolatedAsyncioTestCase):
     def setUp(self):
         config = Mock()
         config.get.return_value = None
@@ -60,17 +60,6 @@ class TestMatrixUtility(TestCase):
 
         self.assertEquals(mocked_room, actual_room)
 
-    def test_get_room_by_alias(self):
-        alias = "realalias"
-        mocked_room = Mock()
-        mocked_room.aliases = ["fakealias", alias]
-
-        rooms = {"123123": mocked_room}
-
-        actual_room = self.matrix.get_room(rooms, alias)
-
-        self.assertEquals(mocked_room, actual_room)
-
     def test_dont_get_room_if_no_match(self):
         mocked_room = Mock()
         mocked_room.aliases = ["no"]
@@ -89,7 +78,7 @@ class TestMatrixUtility(TestCase):
         mocked_room = mock.Mock()
         mocked_user = mock.Mock()
 
-        mocked_room.get_joined_members.return_value = [mocked_user]
+        mocked_room.users = {"doesntmatter": mocked_user}
         mocked_user.user_id = user_id
 
         actual_user = self.matrix.get_user(mocked_room, user_id)
@@ -101,13 +90,12 @@ class TestMatrixUtility(TestCase):
         mocked_room = mock.Mock()
         mocked_user = mock.Mock()
 
-        mocked_room.get_joined_members.return_value = [mocked_user]
-        mocked_user.displayname = display_name
+        mocked_room.users = {"doesntmatter": mocked_user}
+        mocked_user.display_name = display_name
 
         actual_user = self.matrix.get_user(mocked_room, display_name)
 
         self.assertEquals(mocked_user, actual_user)
-        mocked_room.get_joined_members.assert_called_once()
 
     def test_dont_get_user_if_no_match(self):
         display_name = "displayname"
@@ -115,41 +103,48 @@ class TestMatrixUtility(TestCase):
         mocked_room = mock.Mock()
         mocked_user = mock.Mock()
 
-        mocked_room.get_joined_members.return_value = [mocked_user]
-        mocked_user.displayname = display_name
+        mocked_room.users = {"doesntmatter": mocked_user}
+        mocked_user.display_name = display_name
         mocked_user.user_id = user_id
 
         actual_user = self.matrix.get_user(mocked_room, "neither")
 
         self.assertIsNone(actual_user)
-        mocked_room.get_joined_members.assert_called_once()
 
-    def test_make_api_call_when_get_presence(self):
+    def test_get_presence(self):
         expected_presence = "presence"
         user_id = "user"
-        self.matrix.matrix_client.api._send.return_value = expected_presence
+        room_id = "room"
+        self._mock_get_presence(expected_presence, room_id, user_id)
 
-        actual_presence = self.matrix.get_presence(user_id)
+        actual_presence = self.matrix.get_presence(room_id, user_id)
 
         self.assertEquals(expected_presence, actual_presence)
-        self.matrix.matrix_client.api._send.assert_called_with("GET", "/presence/" + user_id + "/status")
 
     def test_user_online_if_presence_is_online(self):
-        expected_presence = {"presence": "online"}
+        expected_presence = "online"
         user_id = "user"
-        self.matrix.matrix_client.api._send.return_value = expected_presence
+        room_id = "room"
+        self._mock_get_presence(expected_presence, room_id, user_id)
 
-        online = self.matrix.is_online(user_id)
+        online = self.matrix.is_online(room_id, user_id)
 
         self.assertTrue(online)
-        self.matrix.matrix_client.api._send.assert_called_with("GET", "/presence/" + user_id + "/status")
 
     def test_user_not_online_if_presence_is_offline(self):
-        expected_presence = {"presence": "offline"}
+        expected_presence = "offline"
         user_id = "user"
-        self.matrix.matrix_client.api._send.return_value = expected_presence
+        room_id = "room"
+        self._mock_get_presence(expected_presence, room_id, user_id)
 
-        online = self.matrix.is_online(user_id)
+        online = self.matrix.is_online(room_id, user_id)
 
         self.assertFalse(online)
-        self.matrix.matrix_client.api._send.assert_called_with("GET", "/presence/" + user_id + "/status")
+
+    def _mock_get_presence(self, expected_presence, room_id, user_id):
+        mocked_room = mock.Mock()
+        mocked_user = mock.Mock()
+        mocked_user.presence = expected_presence
+        mocked_room.users = {user_id: mocked_user}
+        rooms = {room_id: mocked_room}
+        self.matrix.matrix_client.rooms = rooms

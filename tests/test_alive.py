@@ -1,33 +1,42 @@
-from unittest import TestCase
-from unittest.mock import Mock
+from unittest import IsolatedAsyncioTestCase
+from unittest.mock import AsyncMock
 
 from chaanbot.modules.alive import Alive
 
 
-class TestAlive(TestCase):
+class TestAlive(IsolatedAsyncioTestCase):
 
-    def test_send_alive_to_room(self):
-        room = Mock()
-        ran = Alive().run(room, None, "!alive")
+    async def test_send_alive_to_room(self):
+        room = AsyncMock()
+        room.room_id = 1234
+        matrix = AsyncMock()
+        matrix.matrix_client.rooms = {"room": "room1"}
+
+        ran = await Alive(None, matrix, None, None).run(room, None, "!alive")
+
         self.assertTrue(ran)
-        room.send_text.assert_any_call("Yes.")
+        matrix.send_text_to_room.assert_any_call("Yes.", room.room_id)
 
-    def test_not_ran_if_wrong_command(self):
-        room = Mock()
-        ran = Alive().run(room, None, "alive")
+    async def test_not_ran_if_wrong_command(self):
+        room = AsyncMock()
+        room.room_id = 1234
+        matrix = AsyncMock()
+        matrix.matrix_client.rooms = {"room": "room1"}
+
+        ran = await Alive(None, matrix, None, None).run(room, None, "alive")
         self.assertFalse(ran)
-        room.send_text.assert_not_called()
+        matrix.send_text_to_room.assert_not_called()
 
-    def test_config_has_properties(self):
-        alive_class = Alive()
+    async def test_config_has_properties(self):
+        alive_class = Alive(None, None, None, None)
         self.assertLess(0, len(alive_class.operations))
         self.assertFalse(alive_class.always_run)
 
-    def test_should_run_returns_true_if_commands_match(self):
-        alive_class = Alive()
+    async def test_should_run_returns_true_if_commands_match(self):
+        alive_class = Alive(None, None, None, None)
         self.assertTrue(alive_class.should_run("!alive"))
         self.assertTrue(alive_class.should_run("!running"))
 
-    def test_should_run_returns_false_if_commands_do_not_match(self):
-        alive_class = Alive()
+    async def test_should_run_returns_false_if_commands_do_not_match(self):
+        alive_class = Alive(None, None, None, None)
         self.assertFalse(alive_class.should_run("alive!"))

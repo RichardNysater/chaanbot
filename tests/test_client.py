@@ -1,14 +1,14 @@
-from unittest import TestCase
-from unittest.mock import Mock, patch
+from unittest import IsolatedAsyncioTestCase
+from unittest.mock import Mock, patch, AsyncMock
 
 from chaanbot.client import Client
 
 
-class TestClient(TestCase):
+class TestClient(IsolatedAsyncioTestCase):
 
-    def test_load_environment_on_initialization(self):
-        module_runner = Mock()
-        matrix = Mock()
+    async def test_load_environment_on_initialization(self):
+        module_runner = AsyncMock()
+        matrix = AsyncMock()
         config = Mock()
         config.get.side_effect = self._get_config_side_effect
 
@@ -32,19 +32,16 @@ class TestClient(TestCase):
         return None
 
     @patch.object(Client, "_run_forever")
-    def test_join_rooms_and_add_listeners_and_listen_forever_when_ran(self, run_forever_method):
-        module_runner = Mock()
-        matrix = Mock()
+    async def test_join_rooms_and_add_listeners_and_listen_forever_when_ran(self, run_forever_method):
+        module_runner = AsyncMock()
+        matrix = AsyncMock()
         matrix.matrix_client.rooms = {"room": "room1"}
         config = Mock()
         config.get.side_effect = self._get_config_side_effect
 
         client = Client(module_runner, config, matrix)
 
-        handler = Mock()
-        client.run(handler)
-        matrix.matrix_client.add_invite_listener.assert_called_once()
-        matrix.matrix_client.add_leave_listener.assert_called_once()
-        matrix.matrix_client.start_listener_thread.assert_called_once()
+        await client.run()
+        self.assertEqual(2, matrix.matrix_client.add_event_callback.call_count)
         matrix.join_room.assert_called_once()
         run_forever_method.assert_called_once()

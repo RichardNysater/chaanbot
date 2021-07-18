@@ -5,11 +5,14 @@ matrix_server_url = https://matrix.example.com:8448
 # Where the sqlite database should be located
 sqlite_database_location = chaanbot.db
 
-# User id the bot should have
+# User id of the bot
 user_id = @chaanbot:example.com
 
-# Access token for login. See: https://t2bot.io/docs/access_tokens/
-access_token = SuperSecretToken
+# Password for login
+password = SuperSecretPassword
+
+# Device name for the bot to use
+device_name = Chaanbot!
 
 # Rooms to join upon start. Can be either room_id or alias
 listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:example.com

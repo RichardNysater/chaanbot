@@ -1,14 +1,13 @@
+import asyncio
 import configparser
 import logging
 import os
-import sys
-import traceback
 from time import sleep
 
 import appdirs
 import pkg_resources
 import requests as requests
-from matrix_client.client import MatrixClient
+from nio import LoginError, AsyncClient
 
 from chaanbot.client import Client
 from chaanbot.database import Database
@@ -19,7 +18,7 @@ from chaanbot.module_runner import ModuleRunner
 logger = logging.getLogger("start")
 
 
-def main():
+async def main():
     if "DEBUG" in os.environ:
         logger.info("Running in debug mode")
         logging.basicConfig(level=logging.DEBUG)
@@ -29,32 +28,37 @@ def main():
     logger.info("Reading config from {}".format(config_path))
     config = configparser.ConfigParser()
     if config.read(config_path):
-        matrix_client = _connect(config)
+        matrix_client = await _connect(config)
         matrix = Matrix(config, matrix_client)
         database = Database(config.get("chaanbot", "sqlite_database_location", fallback=None))
         module_loader = ModuleLoader(config, database, requests)
         module_runner = ModuleRunner(config, matrix, module_loader)
         chaanbot = Client(module_runner, config, matrix)
-        chaanbot.run(lambda exception: _connect(config))
+        await chaanbot.run()
     else:
         logger.error("Could not read config file")
 
 
-def _connect(config) -> MatrixClient:
+async def _connect(config) -> AsyncClient:
     # Connect to a matrix server
     base_url = config.get("chaanbot", "matrix_server_url")
-    token = config.get("chaanbot", "access_token")
+    password = config.get("chaanbot", "password", fallback=None)
     user_id = config.get("chaanbot", "user_id")
+    device_name = config.get("chaanbot", "device_name", fallback=None)
     try:
         logger.info("Connecting to {}".format(base_url))
-        client = MatrixClient(base_url, token, user_id)
+
+        client = AsyncClient(base_url, user_id, device_id=device_name)
+        login_response = await client.login(password, device_name)
+        if type(login_response) == LoginError:
+            logger.error("Failed to login: %s", login_response.message)
         logger.info("Connection successful")
         return client
     except Exception as e:
         logger.warning("Connection to {} failed".format(base_url) +
                        " with error message: " + str(e) + ", retrying in 5 seconds...")
         sleep(5)
-        _connect(config)
+        await _connect(config)
 
 
 def _get_config_path() -> str:
@@ -80,15 +84,4 @@ def create_user_config(cfg_path):
         dest.write(sample_config)
 
 
-if __name__ == "__main__":
-    try:
-        main()
-    except RuntimeError as e:
-        logger.warning("Encountered exception {}.".format(str(e)), e)
-        logger.info("Restarting bot")
-        main()
-    except Exception:
-        traceback.print_exc(file=sys.stdout)
-        sys.exit(1)
-    except KeyboardInterrupt:
-        sys.exit(1)
+asyncio.get_event_loop().run_until_complete(main())

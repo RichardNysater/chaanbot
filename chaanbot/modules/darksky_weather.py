@@ -18,7 +18,11 @@ import logging
 import re
 from typing import Optional
 
+from nio import MatrixRoom, RoomMessage
+
 from chaanbot import command_utility
+from chaanbot.database import Database
+from chaanbot.matrix import Matrix
 
 logger = logging.getLogger("weather")
 
@@ -39,7 +43,7 @@ class DarkskyWeather:
         }
     }
 
-    def __init__(self, config, matrix, database, requests):
+    def __init__(self, config, matrix: Matrix, database: Database, requests):
         self.matrix = matrix
         self.requests = requests
         api_key = config.get("darksky_weather", "api_key", fallback=None)
@@ -66,15 +70,15 @@ class DarkskyWeather:
             self.disabled = True
             logger.info("No database provided, darksky weather module disabled")
 
-    def run(self, room, event, message) -> bool:
+    async def run(self, room: MatrixRoom, event: RoomMessage, message) -> bool:
         if self.should_run(message):
             logger.debug("Should run darksky weather, checking next command")
             if command_utility.matches(self.operations["weather"], message):
                 logger.debug("Showing weather")
-                self._send_weather(room, event["sender"], message)
+                await self._send_weather(room, event.sender, message)
             elif command_utility.matches(self.operations["add_weather_coordinates"], message):
                 logger.debug("Adding coordinates")
-                self._add_coordinates(room, event["sender"], message)
+                await self._add_coordinates(room, event.sender, message)
             else:
                 raise RuntimeError("Could not find command to run on message, but should have been able to")
             return True
@@ -83,25 +87,28 @@ class DarkskyWeather:
     def should_run(self, message) -> bool:
         return not hasattr(self, "disabled") and command_utility.matches(self.operations, message)
 
-    def _send_weather(self, room, user_id, message):
+    async def _send_weather(self, room: MatrixRoom, user_id, message):
         latitude, longitude = self._get_coordinates(room, user_id)
         if not latitude or not longitude:
-            room.send_text("Set your coordinates by using !setcoordinates [LATITUDE] [LONGITUDE].")
+            await self.matrix.send_text_to_room("Set your coordinates by using !setcoordinates [LATITUDE] [LONGITUDE].",
+                                                room.room_id)
             return
 
         argument = command_utility.get_argument(message)
 
         if argument:
             days = argument.strip().split(" ")
-            self._send_several_days_weather(room, latitude, longitude, days)
+            await self._send_several_days_weather(room, latitude, longitude, days)
             return
         else:
-            self._send_todays_weather(room, latitude, longitude)
+            await self._send_todays_weather(room, latitude, longitude)
             return
 
-    def _send_several_days_weather(self, room, latitude, longitude, days):
+    async def _send_several_days_weather(self, room: MatrixRoom, latitude, longitude, days):
         if len(days) > self.max_days_to_send_at_once:
-            room.send_text("Can only look up {} days at once.".format(self.max_days_to_send_at_once))
+            await self.matrix.send_text_to_room(
+                "Can only look up {} days at once.".format(self.max_days_to_send_at_once),
+                room.room_id)
             return
 
         url = "{}/forecast/{}/{},{}?units=si&exclude=currently,minutely,hourly,alerts,flags" \
@@ -119,9 +126,9 @@ class DarkskyWeather:
             summary = contents["daily"]["data"][int(days_from_today)]["summary"]
             message += message_for_one_day.format(day, max_temp, min_temp, summary)
 
-        room.send_text(message)
+        await self.matrix.send_text_to_room(message, room.room_id)
 
-    def _send_todays_weather(self, room, latitude, longitude):
+    async def _send_todays_weather(self, room: MatrixRoom, latitude, longitude):
         url = "{}/forecast/{}/{},{}?units=si&exclude=minutely,hourly,alerts,flags" \
             .format(self.darksky_api_url, self.api_key, latitude, longitude)
 
@@ -133,9 +140,9 @@ class DarkskyWeather:
 
         message = "Currently: {} (Max: {}, Min: {})\t{}" \
             .format(current_temp, max_temp, min_temp, summary)
-        room.send_text(message)
+        await self.matrix.send_text_to_room(message, room.room_id)
 
-    def _add_coordinates(self, room, user_id, message):
+    async def _add_coordinates(self, room: MatrixRoom, user_id, message):
         argument = command_utility.get_argument(message).strip()
 
         split_argument = re.split(';|,|\\s', argument, 1)
@@ -151,9 +158,9 @@ class DarkskyWeather:
         logger.debug(
             "Inserted Lat {} Long {} for user_id {} and room {} with id {}".format(latitude, longitude, user_id,
                                                                                    room.room_id, cursor.lastrowid))
-        room.send_text("Coordinates set to {},{}.".format(latitude, longitude))
+        await self.matrix.send_text_to_room("Coordinates set to {},{}.".format(latitude, longitude), room.room_id)
 
-    def _get_coordinates(self, room, user_id) -> (Optional[str], Optional[str]):
+    def _get_coordinates(self, room: MatrixRoom, user_id) -> (Optional[str], Optional[str]):
         conn = self.database.connect()
         result = conn.execute(
             "SELECT LATITUDE,LONGITUDE FROM user_coordinates WHERE ROOM_ID = ? AND USER_ID = ?",
