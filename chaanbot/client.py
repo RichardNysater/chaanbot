@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 
 import logging
-from time import sleep
+
+from nio import MatrixRoom, InviteMemberEvent, RoomMessage
+
+from chaanbot.matrix import Matrix
+from chaanbot.module_runner import ModuleRunner
 
 logger = logging.getLogger("chaanbot")
 
@@ -11,7 +15,7 @@ class Client:
 
     blacklisted_room_ids, whitelisted_room_ids, loaded_modules, allowed_inviters = [], [], [], []
 
-    def __init__(self, module_runner, config, matrix):
+    def __init__(self, module_runner: ModuleRunner, config, matrix: Matrix):
         try:
             self.module_runner = module_runner
             self.config = config
@@ -27,19 +31,17 @@ class Client:
             logger.exception("Failed with exception: {}".format(str(exception)), exception)
             raise exception
 
-    def run(self, exception_handler):
-        self._join_rooms(self.config)
-        self.matrix.matrix_client.add_invite_listener(self._on_invite)
-        self.matrix.matrix_client.add_leave_listener(self._on_leave)
-        self.matrix.matrix_client.start_listener_thread(exception_handler=exception_handler)
+    async def run(self):
+        await self._join_rooms(self.config)
+        self.matrix.matrix_client.add_event_callback(self._on_invite, (InviteMemberEvent,))
+        self.matrix.matrix_client.add_event_callback(self._on_room_event, (RoomMessage,))
         logger.info("Listeners added, now running...")
-        self._run_forever()
+        await self._run_forever()
 
-    def _run_forever(self):
-        while True:
-            sleep(1)
+    async def _run_forever(self):
+        await self.matrix.matrix_client.sync_forever(timeout=30000, full_state=True)
 
-    def _join_rooms(self, config):
+    async def _join_rooms(self, config):
         if not self.matrix.matrix_client.rooms:
             logger.warning("No rooms available")
         else:
@@ -49,50 +51,34 @@ class Client:
                             config.get("chaanbot", "listen_rooms", fallback=None).split(",")]
             logger.info("Rooms to listen to: " + str(listen_rooms) + ". Will attempt to join these now.")
             for room_id in listen_rooms:
-                self.matrix.join_room(room_id, self._on_room_event)
+                await self.matrix.join_room(room_id)
 
         for room_id in self.matrix.matrix_client.rooms:
             room = self.matrix.matrix_client.rooms.get(room_id)
             if hasattr(room, "invite_only") and room.invite_only:
                 logger.info("Private room detected, will attempt to join it: {}".format(room_id))
-                self.matrix.join_room(room_id, self._on_room_event)
+                await self.matrix.join_room(room_id)
 
-    def _on_invite(self, room_id, state):
-        sender = "Someone"
-        for event in state["events"]:
-            if event["type"] == "m.room.member" and event["content"]["membership"] == "invite" and \
-                    event["state_key"] == self.matrix.matrix_client.user_id:
-                sender = event["sender"]
-                break
-
-        logger.info("Invited to {} by {}".format(room_id, sender))
+    async def _on_invite(self, room: MatrixRoom, event: InviteMemberEvent):
+        logger.info("Invited to {} by {}".format(room.room_id, event.sender))
         try:
             for inviter in self.allowed_inviters:
-                if inviter.lower() == sender.lower():
-                    logger.info("{} is an approved inviter, attempting to join room".format(sender))
-                    self.matrix.join_room(room_id)
+                if inviter.lower() == event.sender.lower():
+                    logger.info("{} is an approved inviter, attempting to join room".format(event.sender))
+                    await self.matrix.join_room(room)
                     return
-            logger.info("{} is not an approved inviter, ignoring invite".format(sender))
+            logger.info("{} is not an approved inviter, ignoring invite".format(event.sender))
             return
         except AttributeError:
-            logger.info("Approved inviters turned off, attempting to join room: {}".format(room_id))
-            self.matrix.join_room(room_id)
+            logger.info("Approved inviters turned off, attempting to join room: {}".format(room.room_id))
+            await self.matrix.join_room(room)
 
-    def _on_room_event(self, room, event):
-        if event["sender"] == self.matrix.matrix_client.user_id:
+    async def _on_room_event(self, room: MatrixRoom, event: RoomMessage):
+        if event.sender == self.matrix.matrix_client.user_id:
             return
-        if event["type"] != "m.room.message":
+        if event.source["type"] != "m.room.message":
             return
-        if event["content"]["msgtype"] != "m.text":
+        if event.source["content"]["msgtype"] != "m.text":
             return
-        message = event["content"]["body"].strip()
-        self.module_runner.run(event, room, message)
-
-    @staticmethod
-    def _on_leave(room_id, state):
-        sender = "Someone"
-        for event in state["timeline"]["events"]:
-            if "membership" in event:
-                continue
-            sender = event["sender"]
-        logger.info("Kicked or disinvited from {} by {}".format(room_id, sender))
+        message = event.source["content"]["body"].strip()
+        await self.module_runner.run(event, room, message)

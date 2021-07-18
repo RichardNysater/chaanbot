@@ -1,5 +1,7 @@
 import logging
-from typing import Optional
+from typing import Optional, Dict
+
+from nio import MatrixRoom, AsyncClient, MatrixUser
 
 logger = logging.getLogger("matrix_utility")
 
@@ -7,7 +9,7 @@ logger = logging.getLogger("matrix_utility")
 class Matrix:
     """ Contains the matrix client and help methods """
 
-    def __init__(self, config, matrix_client):
+    def __init__(self, config, matrix_client: AsyncClient):
         self.matrix_client = matrix_client
         blacklisted_rooms = config.get("chaanbot", "blacklisted_room_ids", fallback=None)
         if blacklisted_rooms:
@@ -23,8 +25,8 @@ class Matrix:
             self.whitelisted_room_ids = []
         logger.debug("Whitelisted rooms: {}".format(self.whitelisted_room_ids))
 
-    def get_room(self, rooms, id_or_name_or_alias) -> Optional[str]:
-        """ Attempt to get a room. Prio: room_id > canonical_alias > name > alias.
+    def get_room(self, rooms: Dict[str, MatrixRoom], id_or_name_or_alias) -> Optional[MatrixRoom]:
+        """ Attempt to get a room. Prio: room_id > canonical_alias > name.
         Will not be able to get room if not in room
         """
 
@@ -41,27 +43,21 @@ class Matrix:
             room = rooms.get(room_id)
             if room.name == id_or_name_or_alias:
                 return room
-
-        for room_id in rooms:
-            room = rooms.get(room_id)
-            if id_or_name_or_alias in room.aliases:
-                return room
         return None
 
-    def get_user(self, room, user_id_or_display_name) -> Optional[str]:
-        users = room.get_joined_members()
-        for user in users:
+    def get_user(self, room: MatrixRoom, user_id_or_display_name) -> Optional[MatrixUser]:
+        for user in room.users.values():
             if (user_id_or_display_name.lower() == user.user_id.lower()) or (
-                    user_id_or_display_name.lower() == user.displayname.lower()):
+                    user_id_or_display_name.lower() == user.display_name.lower()):
                 return user
         return None
 
-    def is_online(self, user_id):
-        presence = self.get_presence(user_id)
+    def is_online(self, room_id, user_id):
+        presence = self.get_presence(room_id, user_id)
         logger.debug("presence: {}".format(presence))
-        return presence["presence"] == "online"
+        return presence == "online"
 
-    def get_presence(self, user_id):
+    def get_presence(self, room_id, user_id):
         """Returns an object like this:
         {
             "application/json": {
@@ -70,9 +66,21 @@ class Matrix:
             }
         }
         """
-        return self.matrix_client.api._send("GET", "/presence/" + user_id + "/status")
+        return self.matrix_client.rooms[room_id].users[user_id].presence
 
-    def join_room(self, room_id_or_alias, on_room_event_function):
+    async def send_text_to_room(self, message: str, room_id: str):
+        content = {
+            "msgtype": "m.text",
+            "format": "org.matrix.custom.html",
+            "body": message,
+        }
+        await self.matrix_client.room_send(
+            room_id,
+            "m.room.message",
+            content
+        )
+
+    async def join_room(self, room_id_or_alias):
         room = self.get_room(self.matrix_client.rooms, room_id_or_alias)
         room_id = room.room_id if room else room_id_or_alias  # Might not be able to get room_id if room was unlisted
         if self.whitelisted_room_ids and len(self.whitelisted_room_ids) > 0:
@@ -80,8 +88,7 @@ class Matrix:
                 whitelisted_room = self.get_room(self.matrix_client.rooms, whitelisted_room_id_or_alias)
                 if whitelisted_room and whitelisted_room.room_id == room_id:
                     logger.info("Room {} is whitelisted, joining it".format(room_id_or_alias))
-                    room = self.matrix_client.join_room(whitelisted_room_id_or_alias)
-                    room.add_listener(on_room_event_function)
+                    await self.matrix_client.join(whitelisted_room_id_or_alias)
             logger.info("Room {} is not whitelisted, will not join it".format(room_id_or_alias))
         elif self.blacklisted_room_ids and len(self.blacklisted_room_ids) > 0:
             for blacklisted_room_id_or_alias in self.blacklisted_room_ids:
@@ -90,9 +97,7 @@ class Matrix:
                     logger.info("Room {} is blacklisted, will not join it".format(blacklisted_room_id_or_alias))
                     return
             logger.info("Room {} is not blacklisted, will join it".format(room_id_or_alias))
-            room = self.matrix_client.join_room(room_id_or_alias)
-            room.add_listener(on_room_event_function)
+            await self.matrix_client.join(room_id_or_alias)
         else:
             logger.info("Joining room {}".format(room_id_or_alias))
-            room = self.matrix_client.join_room(room_id_or_alias)
-            room.add_listener(on_room_event_function)
+            await self.matrix_client.join(room_id_or_alias)

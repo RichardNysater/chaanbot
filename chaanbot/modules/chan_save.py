@@ -15,6 +15,11 @@ import re
 import uuid
 from typing import List
 
+from nio import RoomMessage, MatrixRoom
+
+from chaanbot.database import Database
+from chaanbot.matrix import Matrix
+
 logger = logging.getLogger("chan_save")
 
 
@@ -23,7 +28,7 @@ class ChanSave:
     file_extensions_to_save = ["jpg", "png", "bmp", "gif", "jpeg", "webm", "pdf"]
     always_run = True
 
-    def __init__(self, config, matrix, database, requests):
+    def __init__(self, config, matrix: Matrix, database: Database, requests):
         self.matrix = matrix
         self.requests = requests
         save_dirpath = config.get("chan_save", "save_dirpath", fallback=None)
@@ -46,16 +51,17 @@ class ChanSave:
                 "/") else url_to_access_saved_files + "/"
             logger.debug("Saved media will be accessible at {}".format(self.url_to_access_saved_files))
 
-    def run(self, room, event, message) -> bool:
+    async def run(self, room: MatrixRoom, event: RoomMessage, message) -> bool:
         links = self._get_links(message)
         for link in links:
             if link and self._should_run(link):
                 logger.debug("Should run chan_save, checking if which (if any) file to save")
                 file_extension = self._get_file_extension(link)
                 if file_extension:
-                    filepath, filename = self._save_media(room, event["sender"], link, file_extension)
+                    filepath, filename = self._save_media(link, file_extension)
                     if hasattr(self, "url_to_access_saved_files"):
-                        room.send_text("File saved to {}{} .".format(self.url_to_access_saved_files, filename))
+                        await self.matrix.send_text_to_room(
+                            "File saved to {}{} .".format(self.url_to_access_saved_files, filename), room.room_id)
 
         return False  # ChanSave does not use commands and should not return that it has handled one
 
@@ -77,7 +83,7 @@ class ChanSave:
             if link.lower().endswith(".{}".format(extension.lower())):
                 return extension
 
-    def _save_media(self, room, user_id, link, file_extension) -> (str, str):
+    def _save_media(self, link, file_extension) -> (str, str):
         filename = "{}.{}".format(uuid.uuid1(), file_extension)
         filepath = "{}{}".format(self.save_dirpath, filename)
 
