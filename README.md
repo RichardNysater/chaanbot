@@ -72,7 +72,7 @@ sudo systemctl enable chaanbot
 
 ## Upgrading from 1.x to 2.0
 
-In 2.0 acces token login is (hopefully temporarily) disabled, use password login instead. See chaanbot.cfg.sample for
+In 2.0 access token login is (hopefully temporarily) disabled, use password login instead. See chaanbot.cfg.sample for
 how to set password.
 
 ## Commands
