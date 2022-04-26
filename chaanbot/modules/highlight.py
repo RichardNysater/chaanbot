@@ -218,7 +218,8 @@ class Highlight:
                     (room.room_id, group)).fetchall()]
 
     def _get_member_user_ids_except_sender(self, room: MatrixRoom, group, sender_user_id) -> list:
-        member_user_ids = [self.matrix.get_user(room, member).user_id for member in self._get_members(room, group)]
+        member_user_ids = [self.matrix.get_user(room, member).user_id for member in self._get_members(room, group) if
+                           self.matrix.get_user(room, member) is not None]
         return self._remove_element(member_user_ids, sender_user_id)
 
     def _remove_element(self, list_to_remove_from, element_to_remove):
