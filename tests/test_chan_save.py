@@ -8,6 +8,8 @@ class TestChanSave(IsolatedAsyncioTestCase):
     url_to_access_saved_files = "https://location/i/"
     save_dirpath = "/dir/to/save"
     event = {"sender": "user_id"}
+    link = "https://4chan.org/g/stallman.jpg"
+    sha1_hash_of_link = "5e323b28aa4445bf42f9359ce7b66cbcb12f3c89"
 
     @patch('os.access', return_value=True)
     async def asyncSetUp(self, mock_os_access) -> None:
@@ -45,32 +47,41 @@ class TestChanSave(IsolatedAsyncioTestCase):
         chan_save = ChanSave(config, AsyncMock(), AsyncMock(), self.requests)
         self.assertTrue(chan_save.disabled)
 
-    @patch("uuid.uuid1")
     @patch("builtins.open", new_callable=mock_open)
-    async def test_save_4chan_media_and_send_URL(self, mock_open, mock_uuid):
-        uuid = "123123"
-        mock_uuid.return_value = uuid
-        await self.chan_save.run(self.room, self.event, "https://4chan.org/g/stallman.jpg")
+    async def test_save_4chan_media_and_send_URL(self, mock_open):
+        await self.chan_save.run(self.room, self.event, self.link)
 
-        expected_message = "File saved to {}{}{} .".format(self.chan_save.url_to_access_saved_files, uuid, ".jpg")
+        expected_message = "File saved to {}{}{} .".format(self.chan_save.url_to_access_saved_files,
+                                                           self.sha1_hash_of_link, ".jpg")
         self.matrix.send_text_to_room.assert_called_with(expected_message, self.room.room_id)
         self.requests.get.assert_called_once()
         mock_open().write.assert_called_once()
 
-    @patch("uuid.uuid1")
     @patch("builtins.open", new_callable=mock_open)
     @patch('os.access', return_value=True)
-    async def test_save_4chan_media_and_dont_send_URL(self, mock_os_access, mock_open, mock_uuid):
+    async def test_save_4chan_media_and_dont_send_URL(self, mock_os_access, mock_open):
         config = Mock()
         config.get.side_effect = self.get_config_side_effect_without_url_to_access_saved_files
         chan_save = ChanSave(config, AsyncMock(), AsyncMock(), self.requests)
 
-        uuid = "123123"
-        mock_uuid.return_value = uuid
-        await chan_save.run(self.room, self.event, "https://4chan.org/g/stallman.jpg")
+        await chan_save.run(self.room, self.event, self.link)
 
         self.requests.get.assert_called_once()
         mock_open().write.assert_called_once()
+        self.room.send_text.assert_not_called()
+
+    @patch('os.path.exists', return_value=True)  # Called when checking if the file exists
+    @patch("builtins.open", new_callable=mock_open)
+    @patch('os.access', return_value=True)
+    async def test_save_4chan_media_and_dont_send_URL(self, mock_os_access, mock_open, mock_file_exists):
+        config = Mock()
+        config.get.side_effect = self.get_config_side_effect_without_url_to_access_saved_files
+        chan_save = ChanSave(config, AsyncMock(), AsyncMock(), self.requests)
+
+        await chan_save.run(self.room, self.event, self.link)
+
+        self.requests.get.assert_not_called()
+        mock_open().write.assert_not_called()
         self.room.send_text.assert_not_called()
 
     async def test_dont_save_media_if_unsupported_file_extension(self):

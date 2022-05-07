@@ -9,10 +9,10 @@ Usage example:
 Would results in:
 "Bot: Image saved at [website-url]"
 """
+import hashlib
 import logging
 import os
 import re
-import uuid
 from typing import List
 
 from nio import RoomMessage, MatrixRoom
@@ -58,10 +58,14 @@ class ChanSave:
                 logger.debug("Should run chan_save, checking if which (if any) file to save")
                 file_extension = self._get_file_extension(link)
                 if file_extension:
-                    filepath, filename = self._save_media(link, file_extension)
-                    if hasattr(self, "url_to_access_saved_files"):
-                        await self.matrix.send_text_to_room(
-                            "File saved to {}{} .".format(self.url_to_access_saved_files, filename), room.room_id)
+                    filename, filepath = self._get_filename_and_filepath(link, file_extension)
+                    if not os.path.exists(filepath):
+                        self._save_media(link, file_extension)
+                        if hasattr(self, "url_to_access_saved_files"):
+                            await self.matrix.send_text_to_room(
+                                "File saved to {}{} .".format(self.url_to_access_saved_files, filename), room.room_id)
+                    else:
+                        logger.debug("File from url {} already saved at {}".format(link, filepath))
 
         return False  # ChanSave does not use commands and should not return that it has handled one
 
@@ -83,11 +87,13 @@ class ChanSave:
             if link.lower().endswith(".{}".format(extension.lower())):
                 return extension
 
-    def _save_media(self, link, file_extension) -> (str, str):
-        filename = "{}.{}".format(uuid.uuid1(), file_extension)
+    def _get_filename_and_filepath(self, link, file_extension) -> (str, str):
+        filename = "{}.{}".format(hashlib.sha1(link.encode()).hexdigest(), file_extension)
         filepath = "{}{}".format(self.save_dirpath, filename)
+        return filename, filepath
+
+    def _save_media(self, link, filepath):
 
         request = self.requests.get(link, allow_redirects=True)
         with open(filepath, 'wb') as file:
             file.write(request.content)
-        return filepath, filename
