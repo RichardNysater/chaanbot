@@ -60,7 +60,7 @@ class ChanSave:
                 if file_extension:
                     filename, filepath = self._get_filename_and_filepath(link, file_extension)
                     if not os.path.exists(filepath):
-                        self._save_media(link, file_extension)
+                        self._save_media(link, filepath)
                         if hasattr(self, "url_to_access_saved_files"):
                             await self.matrix.send_text_to_room(
                                 "File saved to {}{} .".format(self.url_to_access_saved_files, filename), room.room_id)
@@ -93,7 +93,6 @@ class ChanSave:
         return filename, filepath
 
     def _save_media(self, link, filepath):
-
         request = self.requests.get(link, allow_redirects=True)
         with open(filepath, 'wb') as file:
             file.write(request.content)

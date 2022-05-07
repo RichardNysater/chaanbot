@@ -73,7 +73,7 @@ class TestChanSave(IsolatedAsyncioTestCase):
     @patch('os.path.exists', return_value=True)  # Called when checking if the file exists
     @patch("builtins.open", new_callable=mock_open)
     @patch('os.access', return_value=True)
-    async def test_save_4chan_media_and_dont_send_URL(self, mock_os_access, mock_open, mock_file_exists):
+    async def test_dont_save_if_already_exists(self, mock_os_access, mock_open, mock_file_exists):
         config = Mock()
         config.get.side_effect = self.get_config_side_effect_without_url_to_access_saved_files
         chan_save = ChanSave(config, AsyncMock(), AsyncMock(), self.requests)
