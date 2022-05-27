@@ -14,6 +14,7 @@ class TestDarkskyWeather(IsolatedAsyncioTestCase):
         self.event.sender = "user_id"
         self.requests = Mock()
         self.room = AsyncMock()
+        self.room.room_id = 1234
         self.matrix = AsyncMock()
         self.darksky_weather = DarkskyWeather(config, self.matrix, Mock(), self.requests)
 
