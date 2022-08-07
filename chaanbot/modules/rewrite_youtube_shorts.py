@@ -27,7 +27,7 @@ class RewriteYoutubeShorts:
                                                 fallback="Fixed your link(s): ")
 
     async def run(self, room: MatrixRoom, event: RoomMessage, message) -> bool:
-        links = re.findall(r"http[s]*://[w{3}.]*youtube\.com/shorts/\w+", message, re.IGNORECASE)
+        links = re.findall(r"http[s]*://[w{3}.]*youtube\.com/shorts/[^\s]+", message, re.IGNORECASE)
         hits = [link.replace("/shorts/", "/watch?v=") for link in links]
         if hits:
             msg = self.output_message_prefix + os.linesep.join(hits)

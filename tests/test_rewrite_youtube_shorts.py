@@ -26,15 +26,23 @@ class TestAlive(IsolatedAsyncioTestCase):
             self.config_prefix_message + "https://www.youtube.com/watch?v=6j6ksOu1231",
             self.room.room_id)
 
+    async def test_rewrite_short_with_dash(self):
+        ran = await self.module.run(self.room, None, "Check this out: https://www.youtube.com/shorts/6j6ksO-u1231")
+
+        self.assertFalse(ran)
+        self.matrix.send_text_to_room.assert_any_call(
+            self.config_prefix_message + "https://www.youtube.com/watch?v=6j6ksO-u1231",
+            self.room.room_id)
+
     async def test_rewrite_several_shorts(self):
         ran = await self.module.run(self.room, None,
                                     "Check these out: http://www.youtube.com/shorts/6j6ksOu1231 "
-                                    "and https://youtube.com/shorts/6j6ksOu1232 great huh?")
+                                    "and https://youtube.com/shorts/6j6ksO-u1232 great huh?")
 
         self.assertFalse(ran)
         self.matrix.send_text_to_room.assert_any_call(
             self.config_prefix_message + "http://www.youtube.com/watch?v=6j6ksOu1231"
-            + os.linesep + "https://youtube.com/watch?v=6j6ksOu1232",
+            + os.linesep + "https://youtube.com/watch?v=6j6ksO-u1232",
             self.room.room_id)
 
     async def test_dont_rewrite_non_youtube(self):
