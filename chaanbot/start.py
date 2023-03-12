@@ -48,7 +48,7 @@ async def _connect(config) -> AsyncClient:
     try:
         logger.info("Connecting to {}".format(base_url))
 
-        client = AsyncClient(base_url, user_id, device_id=device_name)
+        client = AsyncClient(base_url, user_id, device_id=device_name)  # ssl=false if running locally
         login_response = await client.login(password, device_name)
         if type(login_response) == LoginError:
             logger.error("Failed to login: %s", login_response.message)
