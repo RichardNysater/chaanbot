@@ -52,5 +52,9 @@ listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:exam
 #url_to_access_saved_files =
 
 [rewrite_youtube_shorts]
-# Choose message to appear before rewritten youtube short links (remember space at the end, if there should be one)
+# Choose message to appear before rewritten youtube short links
+#prefix_message =
+
+[twitter]
+# Choose message to appear before twitter body texts
 #prefix_message =

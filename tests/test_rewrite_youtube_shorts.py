@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock
 from chaanbot.modules.rewrite_youtube_shorts import RewriteYoutubeShorts
 
 
-class TestAlive(IsolatedAsyncioTestCase):
+class TestRewriteYoutubeShorts(IsolatedAsyncioTestCase):
     config_prefix_message = "prefix "
 
     def setUp(self) -> None:

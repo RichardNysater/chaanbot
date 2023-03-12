@@ -37,7 +37,7 @@ setuptools.setup(
     license="GPLv3+",
     url="https://github.com/RichardNysater/chaanbot",
     packages=setuptools.find_packages(exclude=["chaanbot.modules.private"]),
-    install_requires=["matrix-nio", "appdirs", "requests"],
+    install_requires=["matrix-nio", "appdirs", "requests", "beautifulsoup4"],
     package_data={'': ['chaanbot.cfg.sample']},
     classifiers=[
         "Development Status :: 4 - Beta",
