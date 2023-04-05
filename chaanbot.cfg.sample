@@ -31,13 +31,13 @@ listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:exam
 [modules]
 # Choose which modules should be enabled
 # Leave empty or commented out to load all modules (except the ones explicitly disabled)
-# enabled = alive, darksky_weather, highlight
+# enabled = alive, weather, highlight
 
 # Choose modules to disable
 # disabled = alive, highlight
 
-[darksky_weather]
-# API key for darksky.net. Go to https://darksky.net/dev/ and create an account for up to 1000 calls free per day
+[weather]
+# API key for Openweathermap. Create account at https://home.openweathermap.org/api_keys for 2000 calls free per day
 #api_key =
 
 [chan_save]
