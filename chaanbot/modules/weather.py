@@ -1,4 +1,4 @@
-""" The Darksky weather module allows users to broadcast the current weather of a (their?) location.
+""" The weather module allows users to broadcast the current weather of a (their?) location.
 
 Available commands:
 !addcoordinates [LATITUDE] [LONGITUDE]          - Sets the coordinates for a user
@@ -27,10 +27,10 @@ from chaanbot.matrix import Matrix
 logger = logging.getLogger("weather")
 
 
-class DarkskyWeather:
+class Weather:
     always_run = False
     max_days_to_send_at_once = 5
-    darksky_api_url = 'https://api.darksky.net'
+    weather_api_url = 'https://api.openweathermap.org/data/3.0/onecall'
     operations = {
         "weather": {
             "commands": ["!weather"],
@@ -46,16 +46,16 @@ class DarkskyWeather:
     def __init__(self, config, matrix: Matrix, database: Database, requests):
         self.matrix = matrix
         self.requests = requests
-        api_key = config.get("darksky_weather", "api_key", fallback=None)
+        api_key = config.get("weather", "api_key", fallback=None)
         if api_key:
             self.api_key = api_key
         else:
             self.disabled = True
-            logger.info("No API key provided for darksky weather, module disabled")
+            logger.info("No API key provided for weather, module disabled")
 
         if database:
             self.database = database
-            logger.debug("Initializing highlight database if needed")
+            logger.debug("Initializing database if needed")
             conn = database.connect()
             conn.execute('''CREATE TABLE IF NOT EXISTS user_coordinates
             (ID INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -68,11 +68,11 @@ class DarkskyWeather:
             conn.commit()
         else:
             self.disabled = True
-            logger.info("No database provided, darksky weather module disabled")
+            logger.info("No database provided, weather module disabled")
 
     async def run(self, room: MatrixRoom, event: RoomMessage, message) -> bool:
         if self.should_run(message):
-            logger.debug("Should run darksky weather, checking next command")
+            logger.debug("Should run weather, checking next command")
             if command_utility.matches(self.operations["weather"], message):
                 logger.debug("Showing weather")
                 await self._send_weather(room, event.sender, message)
@@ -111,8 +111,8 @@ class DarkskyWeather:
                 room.room_id)
             return
 
-        url = "{}/forecast/{}/{},{}?units=si&exclude=currently,minutely,hourly,alerts,flags" \
-            .format(self.darksky_api_url, self.api_key, latitude, longitude)
+        url = "{}?exclude=minutely,hourly&lat={}&lon={}&appid={}&units=metric" \
+            .format(self.weather_api_url, latitude, longitude, self.api_key)
 
         contents = self.requests.get(url).json()
         message_for_one_day = "{} Max: {}, Min: {}\t{}\n"
@@ -121,22 +121,22 @@ class DarkskyWeather:
             day = "Today\t\t\t" if days_from_today == "0" \
                 else "Tomorrow\t\t" if days_from_today == "1" \
                 else "{} days from now\t".format(days_from_today)
-            min_temp = contents["daily"]["data"][int(days_from_today)]["temperatureLow"]
-            max_temp = contents["daily"]["data"][int(days_from_today)]["temperatureHigh"]
-            summary = contents["daily"]["data"][int(days_from_today)]["summary"]
+            min_temp = contents["daily"][int(days_from_today)]["temp"]["min"]
+            max_temp = contents["daily"][int(days_from_today)]["temp"]["max"]
+            summary = contents["daily"][int(days_from_today)]["weather"][0]["description"].capitalize()
             message += message_for_one_day.format(day, max_temp, min_temp, summary)
 
         await self.matrix.send_text_to_room(message, room.room_id)
 
     async def _send_todays_weather(self, room: MatrixRoom, latitude, longitude):
-        url = "{}/forecast/{}/{},{}?units=si&exclude=minutely,hourly,alerts,flags" \
-            .format(self.darksky_api_url, self.api_key, latitude, longitude)
+        url = "{}?exclude=minutely,hourly&lat={}&lon={}&appid={}&units=metric" \
+            .format(self.weather_api_url, latitude, longitude, self.api_key)
 
         contents = self.requests.get(url).json()
-        current_temp = str(contents["currently"]["temperature"])
-        min_temp = str(contents["daily"]["data"][0]["temperatureLow"])
-        max_temp = str(contents["daily"]["data"][0]["temperatureHigh"])
-        summary = contents["currently"]["summary"]
+        current_temp = str(contents["current"]["temp"])
+        min_temp = str(contents["daily"][0]["temp"]["min"])
+        max_temp = str(contents["daily"][0]["temp"]["max"])
+        summary = contents["current"]["weather"][0]["description"].capitalize()
 
         message = "Currently: {} (Max: {}, Min: {})\t{}" \
             .format(current_temp, max_temp, min_temp, summary)
