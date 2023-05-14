@@ -58,3 +58,7 @@ listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:exam
 [twitter]
 # Choose message to appear before twitter body texts
 #prefix_message =
+
+[revamp]
+# Choose message to appear before rewritten youtube short links
+#prefix_message =
