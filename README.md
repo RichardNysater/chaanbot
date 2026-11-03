@@ -6,13 +6,14 @@ The bot is extensible and currently provides:
 * Highlight module allows users to easily notify groups of users. E.g. "!hl javadevs spring-boot vs micronaut?" would
   highlight/notify any user in the javadevs group.
 * Weather module allows users to broadcast weather reports.
+* Optional `!ai <query>` with isolated per-user/per-room history, quotas, and a restricted local Codex bridge. See [AI setup](docs/ai.md).
 * More to come!
 
 Bot is under active development and severe breaking changes should be expected until a stable release is created.
 
 # Install instructions
 
-Chaanbot requires Python 3.
+Chaanbot requires Python 3.11.5 or later.
 
 Add user for bot. Not required but recommended:
 
@@ -72,7 +73,7 @@ sudo systemctl enable chaanbot
 
 ## Upgrading from 1.x to 2.0
 
-In 2.0 access token login is (hopefully temporarily) disabled, use password login instead. See chaanbot.cfg.sample for
+In 2.0 access token login is (hopefully temporarily) disabled, use password login instead. See [the sample configuration](chaanbot/chaanbot.cfg.sample) for
 how to set password.
 
 ## Commands

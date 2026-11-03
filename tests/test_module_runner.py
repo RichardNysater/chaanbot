@@ -7,6 +7,14 @@ from chaanbot.module_runner import ModuleRunner
 
 class TestModuleRunner(IsolatedAsyncioTestCase):
 
+    async def test_closes_modules_with_async_cleanup(self):
+        module = AsyncMock()
+        loader = Mock()
+        loader.load_modules.return_value = [object(), module]
+        runner = ModuleRunner(Mock(), AsyncMock(), loader)
+        await runner.aclose()
+        module.aclose.assert_awaited_once()
+
     def test_loads_modules_on_init(self):
         config = Mock()
         matrix = AsyncMock()

@@ -5,7 +5,7 @@ import os
 from time import sleep
 
 import appdirs
-import pkg_resources
+from importlib import resources
 import requests as requests
 from nio import LoginError, AsyncClient
 
@@ -79,9 +79,25 @@ def create_user_config(cfg_path):
     """Create the user's config file
     """
     with open(cfg_path, 'wb') as dest:
-        sample_config = pkg_resources.resource_string(__name__, "chaanbot.cfg.sample")
-        logger.info(sample_config)
+        sample_config = resources.files("chaanbot").joinpath("chaanbot.cfg.sample").read_bytes()
+        logger.info("Writing sample configuration to %s", cfg_path)
         dest.write(sample_config)
 
 
-asyncio.get_event_loop().run_until_complete(main())
+def run():
+    """Synchronous console entry point, with cleanup on SIGINT/service shutdown."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    task = loop.create_task(main())
+    try:
+        loop.run_until_complete(task)
+    except KeyboardInterrupt:
+        task.cancel()
+        loop.run_until_complete(asyncio.gather(task, return_exceptions=True))
+    finally:
+        loop.close()
+        asyncio.set_event_loop(None)
+
+
+if __name__ == "__main__":
+    run()

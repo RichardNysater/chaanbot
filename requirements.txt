@@ -1,5 +1,7 @@
+# Latest stable application dependencies, verified 2026-11-03.
+# Pipfile.lock records the resolved transitive dependencies and hashes.
+aiohttp==3.14.5
 appdirs==1.4.4
-requests==2.30.0
-setuptools==67.7.2
-matrix-nio==0.20.2
-beautifulsoup4==4.12.2
+beautifulsoup4==4.15.0
+matrix-nio==0.26.0
+requests==2.34.2

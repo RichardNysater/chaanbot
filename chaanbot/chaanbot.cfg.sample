@@ -62,3 +62,20 @@ listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:exam
 [revamp]
 # Choose message to appear before rewritten youtube short links
 #prefix_message =
+
+[ai]
+# Optional, private-use Codex subscription bridge. Requires Python 3.11+ and Linux.
+# Read docs/ai.md and install/verify the isolated bridge before enabling.
+enabled = false
+# bridge_socket = /run/chaanbot-ai/bridge.sock
+# cooldown_seconds = 30
+# daily_requests = 20
+# daily_tokens = 100000
+# global_daily_requests = 200
+# global_daily_tokens = 1000000
+# request_token_reserve = 40000
+# max_query_bytes = 4000
+# history_turns = 6
+# history_bytes = 12000
+# history_ttl_seconds = 86400
+# max_answer_bytes = 6000

@@ -36,7 +36,7 @@ class TestMatrixUtility(IsolatedAsyncioTestCase):
 
         actual_room = self.matrix.get_room(rooms, room_id)
 
-        self.assertEquals(mocked_room, actual_room)
+        self.assertEqual(mocked_room, actual_room)
 
     def test_get_room_by_canonical_alias(self):
         canonical_alias = "alias"
@@ -47,7 +47,7 @@ class TestMatrixUtility(IsolatedAsyncioTestCase):
 
         actual_room = self.matrix.get_room(rooms, canonical_alias)
 
-        self.assertEquals(mocked_room, actual_room)
+        self.assertEqual(mocked_room, actual_room)
 
     def test_get_room_by_name(self):
         name = "name"
@@ -58,7 +58,7 @@ class TestMatrixUtility(IsolatedAsyncioTestCase):
 
         actual_room = self.matrix.get_room(rooms, name)
 
-        self.assertEquals(mocked_room, actual_room)
+        self.assertEqual(mocked_room, actual_room)
 
     def test_dont_get_room_if_no_match(self):
         mocked_room = Mock()
@@ -83,7 +83,7 @@ class TestMatrixUtility(IsolatedAsyncioTestCase):
 
         actual_user = self.matrix.get_user(mocked_room, user_id)
 
-        self.assertEquals(mocked_user, actual_user)
+        self.assertEqual(mocked_user, actual_user)
 
     def test_get_user_by_display_name(self):
         display_name = "displayname"
@@ -95,7 +95,7 @@ class TestMatrixUtility(IsolatedAsyncioTestCase):
 
         actual_user = self.matrix.get_user(mocked_room, display_name)
 
-        self.assertEquals(mocked_user, actual_user)
+        self.assertEqual(mocked_user, actual_user)
 
     def test_dont_get_user_if_no_match(self):
         display_name = "displayname"
@@ -119,7 +119,7 @@ class TestMatrixUtility(IsolatedAsyncioTestCase):
 
         actual_presence = self.matrix.get_presence(room_id, user_id)
 
-        self.assertEquals(expected_presence, actual_presence)
+        self.assertEqual(expected_presence, actual_presence)
 
     def test_user_online_if_presence_is_online(self):
         expected_presence = "online"

@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, Dict
 
-from nio import MatrixRoom, AsyncClient, MatrixUser
+from nio import MatrixRoom, AsyncClient, MatrixUser, RoomSendResponse
 
 logger = logging.getLogger("matrix_utility")
 
@@ -71,14 +71,16 @@ class Matrix:
     async def send_text_to_room(self, message: str, room_id: str):
         content = {
             "msgtype": "m.text",
-            "format": "org.matrix.custom.html",
             "body": message,
         }
-        await self.matrix_client.room_send(
+        response = await self.matrix_client.room_send(
             room_id,
             "m.room.message",
             content
         )
+        if not isinstance(response, RoomSendResponse):
+            raise RuntimeError("Matrix did not confirm message delivery")
+        return response
 
     async def join_room(self, room_id_or_alias):
         room = self.get_room(self.matrix_client.rooms, room_id_or_alias)

@@ -1,0 +1,37 @@
+[Unit]
+Description=Chaanbot isolated Codex subscription bridge
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=@CODEX_USER@
+Group=@BOT_GROUP@
+WorkingDirectory=/opt/chaanbot-ai
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/opt/chaanbot-ai/venv/bin/python -I /opt/chaanbot-ai/bridge.py serve
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+KillMode=control-group
+RuntimeDirectory=chaanbot-ai
+RuntimeDirectoryMode=0750
+UMask=0007
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=tmpfs
+BindPaths=@CODEX_STATE@
+ReadWritePaths=@CODEX_STATE@
+RestrictSUIDSGID=yes
+CapabilityBoundingSet=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

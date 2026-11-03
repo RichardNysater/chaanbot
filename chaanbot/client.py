@@ -36,7 +36,13 @@ class Client:
         self.matrix.matrix_client.add_event_callback(self._on_invite, (InviteMemberEvent,))
         self.matrix.matrix_client.add_event_callback(self._on_room_event, (RoomMessage,))
         logger.info("Listeners added, now running...")
-        await self._run_forever()
+        try:
+            await self._run_forever()
+        finally:
+            try:
+                await self.module_runner.aclose()
+            finally:
+                await self.matrix.matrix_client.close()
 
     async def _run_forever(self):
         await self.matrix.matrix_client.sync_forever(timeout=30000, full_state=True)
