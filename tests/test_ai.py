@@ -48,7 +48,7 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
     def make_bot(self):
         with patch.dict("os.environ", {"OPENAI_API_KEY": ""}):
             bot = Ai(self.config, self.matrix, self.database, None)
-            bot.auth.available = MagicMock(return_value=True)
+            bot.bridge.available = MagicMock(return_value=True)
             self.bots.append(bot)
             return bot
 
@@ -93,18 +93,59 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("previous_response_id", payload)
         self.assertIn("https://example.org/source", self.matrix.send_text_to_room.call_args.args[0])
 
+    async def test_command_matching_preserves_whitespace_case_and_multiline_queries(self):
+        for message in (None, "", "   ", "!alive", "!aix Hello", "!ai-reset"):
+            with self.subTest(message=message):
+                self.assertFalse(self.bot.should_run(message))
+        for message in ("!ai", "!AI Hello", "  !ai\tHello", "!ai First line\nSecond line"):
+            with self.subTest(message=message):
+                self.assertTrue(self.bot.should_run(message))
+        for message in ("!ai", "  !AI\tHELP  "):
+            self.assertTrue(await self.bot.run(self.room, self.event, message))
+        self.bot._request.assert_not_called()
+        await self.bot.run(self.room, self.event, "  !AI\tFirst line\nSecond line  ")
+        await self.drain(self.bot)
+        payload = self.bot._request.call_args.args[0]
+        self.assertEqual(payload["input"][-1]["content"], "First line\nSecond line")
+
+    async def test_reset_keeps_history_when_a_request_is_pending_after_restart(self):
+        self.bot.storage.save_history(self.room.room_id, self.event.sender, "Remember this", "Saved")
+        self.assertIsNone(self.bot.storage.reserve("$pending", self.event.sender, 40000))
+        restarted = self.make_bot()
+        restarted._request = AsyncMock()
+        await restarted.run(self.room, self.event, "!ai reset")
+        self.assertIn("Wait for your current AI request", self.matrix.send_text_to_room.call_args.args[0])
+        self.assertEqual(len(restarted.storage.history(self.room.room_id, self.event.sender)), 2)
+        self.assertIn("1/20 requests, 40000/100000 tokens", restarted._usage(self.event.sender))
+        restarted._request.assert_not_called()
+
+    async def test_storage_preserves_requests_from_before_delivery_columns(self):
+        database = Database(self.temp.name + "/legacy.db")
+        with closing(database.connect()) as conn, conn:
+            conn.execute("CREATE TABLE ai_requests (event_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, "
+                         "day TEXT NOT NULL, started REAL NOT NULL, tokens INTEGER NOT NULL, "
+                         "pending INTEGER NOT NULL)")
+            conn.execute("INSERT INTO ai_requests VALUES (?,?,?,?,?,?)",
+                         ("$legacy", self.event.sender, self.bot.storage._day(), time.time(), 100, 0))
+        bot = Ai(self.config, self.matrix, database, None)
+        self.bots.append(bot)
+        self.assertIn("1/20 requests, 100/100000 tokens", bot._usage(self.event.sender))
+        with closing(database.connect()) as conn:
+            self.assertEqual(conn.execute("SELECT chargeable,delivery FROM ai_requests").fetchone(), (1, "none"))
+        self.assertIn("already been handled", bot.storage.reserve("$legacy", self.event.sender, 100))
+
     async def test_history_isolation_persistence_and_reset(self):
         await self.bot.run(self.room, self.event, "!ai Remember my cat")
         await self.drain(self.bot)
         restarted = self.make_bot()
-        self.assertEqual(len(restarted._history(self.room.room_id, self.event.sender)), 2)
-        self.assertEqual(restarted._history("!another:example.org", self.event.sender), [])
-        self.assertEqual(restarted._history(self.room.room_id, "@bob:example.org"), [])
-        restarted._save_history("!another:example.org", self.event.sender, "Other room", "Reply")
+        self.assertEqual(len(restarted.storage.history(self.room.room_id, self.event.sender)), 2)
+        self.assertEqual(restarted.storage.history("!another:example.org", self.event.sender), [])
+        self.assertEqual(restarted.storage.history(self.room.room_id, "@bob:example.org"), [])
+        restarted.storage.save_history("!another:example.org", self.event.sender, "Other room", "Reply")
         await restarted.run(self.room, self.event, "!ai reset")
         await self.drain(restarted)
-        self.assertEqual(restarted._history(self.room.room_id, self.event.sender), [])
-        self.assertEqual(len(restarted._history("!another:example.org", self.event.sender)), 2)
+        self.assertEqual(restarted.storage.history(self.room.room_id, self.event.sender), [])
+        self.assertEqual(len(restarted.storage.history("!another:example.org", self.event.sender)), 2)
         self.assertIn("1/20 requests, 100/100000 tokens", restarted._usage(self.event.sender))
 
     async def test_cooldown_applies_across_rooms_and_restarts(self):
@@ -118,26 +159,26 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("cooldown", self.matrix.send_text_to_room.call_args.args[0])
 
     async def test_request_token_and_global_quotas(self):
-        self.bot.daily_requests = 1
-        self.assertIsNone(self.bot._reserve("$one", "@user", 100))
+        self.bot.storage.daily_requests = 1
+        self.assertIsNone(self.bot.storage.reserve("$one", "@user", 100))
         with closing(self.database.connect()) as conn, conn:
             conn.execute("UPDATE ai_requests SET started=?,pending=0", (time.time() - 100,))
-        self.assertIn("daily", self.bot._reserve("$two", "@user", 100))
-        self.bot.daily_tokens = 99
-        self.assertIn("daily", self.bot._reserve("$three", "@different", 100))
-        self.bot.daily_tokens = 100000
-        self.bot.global_daily_requests = 1
-        self.assertIn("bot's daily", self.bot._reserve("$four", "@different", 100))
-        self.bot.global_daily_requests = 200
-        self.bot.global_daily_tokens = 150
-        self.assertIn("bot's daily", self.bot._reserve("$five", "@different", 100))
+        self.assertIn("daily", self.bot.storage.reserve("$two", "@user", 100))
+        self.bot.storage.daily_tokens = 99
+        self.assertIn("daily", self.bot.storage.reserve("$three", "@different", 100))
+        self.bot.storage.daily_tokens = 100000
+        self.bot.storage.global_daily_requests = 1
+        self.assertIn("bot's daily", self.bot.storage.reserve("$four", "@different", 100))
+        self.bot.storage.global_daily_requests = 200
+        self.bot.storage.global_daily_tokens = 150
+        self.assertIn("bot's daily", self.bot.storage.reserve("$five", "@different", 100))
 
     async def test_duplicate_and_inflight_requests(self):
-        self.assertIsNone(self.bot._reserve("$one", "@user", 100))
-        self.assertIn("already been handled", self.make_bot()._reserve("$one", "@user", 100))
+        self.assertIsNone(self.bot.storage.reserve("$one", "@user", 100))
+        self.assertIn("already been handled", self.make_bot().storage.reserve("$one", "@user", 100))
         with closing(self.database.connect()) as conn, conn:
             conn.execute("UPDATE ai_requests SET started=?", (time.time() - 40,))
-        self.assertIn("in progress", self.make_bot()._reserve("$two", "@user", 100))
+        self.assertIn("in progress", self.make_bot().storage.reserve("$two", "@user", 100))
 
     async def test_failure_keeps_reservation_and_no_history(self):
         self.bot._request.side_effect = asyncio.TimeoutError
@@ -147,7 +188,7 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
             tokens, pending = conn.execute("SELECT tokens,pending FROM ai_requests").fetchone()
         self.assertGreater(tokens, 8192)
         self.assertEqual(pending, 0)
-        self.assertEqual(self.bot._history(self.room.room_id, self.event.sender), [])
+        self.assertEqual(self.bot.storage.history(self.room.room_id, self.event.sender), [])
 
     async def test_incomplete_response_records_usage_without_history(self):
         response = completed(tokens=8192)
@@ -156,13 +197,13 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         await self.bot.run(self.room, self.event, "!ai Question")
         await self.drain(self.bot)
         self.assertIn("8192/100000 tokens", self.bot._usage(self.event.sender))
-        self.assertEqual(self.bot._history(self.room.room_id, self.event.sender), [])
+        self.assertEqual(self.bot.storage.history(self.room.room_id, self.event.sender), [])
 
     async def test_missing_subscription_and_oversized_queries_do_not_call_api(self):
-        self.bot.auth = BridgeConnection(self.temp.name + "/missing.sock")
+        self.bot.bridge = BridgeConnection(self.temp.name + "/missing.sock")
         await self.bot.run(self.room, self.event, "!ai Test")
         await self.drain(self.bot)
-        self.bot.auth.available = MagicMock(return_value=True)
+        self.bot.bridge.available = MagicMock(return_value=True)
         await self.bot.run(self.room, self.event, "!ai " + "é" * 2001)
         await self.drain(self.bot)
         self.bot._request.assert_not_called()
@@ -171,13 +212,13 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_history_bounds_and_expiry(self):
         for n in range(10):
-            self.bot._save_history(self.room.room_id, self.event.sender, str(n), "A" * 50)
-        self.assertEqual(len(self.bot._history(self.room.room_id, self.event.sender)), 12)
-        self.bot.history_bytes = 60
-        self.assertEqual(len(self.bot._history(self.room.room_id, self.event.sender)), 2)
+            self.bot.storage.save_history(self.room.room_id, self.event.sender, str(n), "A" * 50)
+        self.assertEqual(len(self.bot.storage.history(self.room.room_id, self.event.sender)), 12)
+        self.bot.storage.history_bytes = 60
+        self.assertEqual(len(self.bot.storage.history(self.room.room_id, self.event.sender)), 2)
         with closing(self.database.connect()) as conn, conn:
             conn.execute("UPDATE ai_history SET created=0")
-        self.assertEqual(self.bot._history(self.room.room_id, self.event.sender), [])
+        self.assertEqual(self.bot.storage.history(self.room.room_id, self.event.sender), [])
 
     async def test_loader_can_instantiate_ai(self):
         loader = ModuleLoader(self.config, self.database, None)
@@ -204,7 +245,7 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         await self.bot.run(self.room, self.event, "!ai Hello")
         await self.drain(self.bot)
         self.bot._request.assert_awaited_once()
-        self.assertEqual(self.bot._history(self.room.room_id, self.event.sender), [])
+        self.assertEqual(self.bot.storage.history(self.room.room_id, self.event.sender), [])
         self.assertEqual(self.matrix.send_text_to_room.call_args.args[0], "Subscription allowance unavailable")
 
     async def test_busy_rejections_refund_tokens_requests_and_cooldown(self):
@@ -217,7 +258,7 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("0/20 requests, 0/100000 tokens", self.bot._usage(self.event.sender))
         with closing(self.database.connect()) as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM ai_requests").fetchone()[0], 3)
-        self.assertIn("already been handled", self.bot._reserve("$busy0", self.event.sender, 40000))
+        self.assertIn("already been handled", self.bot.storage.reserve("$busy0", self.event.sender, 40000))
 
     async def test_request_returns_without_waiting_and_shutdown_cleans_queue(self):
         started = asyncio.Event()
@@ -272,7 +313,7 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         sent = "".join(chunks)
         self.assertLessEqual(len(sent.encode()), 6000)
         self.assertIn("shortened", sent)
-        self.assertEqual(self.bot._history(self.room.room_id, self.event.sender)[-1]["content"], sent)
+        self.assertEqual(self.bot.storage.history(self.room.room_id, self.event.sender)[-1]["content"], sent)
         self.assertEqual("".join(split_reply("🙂ä" * 1000)), "🙂ä" * 1000)
 
     async def test_failed_and_partial_delivery_do_not_poison_history(self):
@@ -284,7 +325,7 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
             event = SimpleNamespace(sender="@partial" if partial else "@failed", event_id="$partial" if partial else "$failed")
             await self.bot.run(self.room, event, "!ai Hello")
             await self.drain(self.bot)
-            self.assertEqual(self.bot._history(self.room.room_id, event.sender), [])
+            self.assertEqual(self.bot.storage.history(self.room.room_id, event.sender), [])
             with closing(self.database.connect()) as conn:
                 state = conn.execute("SELECT delivery FROM ai_requests WHERE event_id=?", (event.event_id,)).fetchone()[0]
             self.assertEqual(state, "partial" if partial else "failed")
