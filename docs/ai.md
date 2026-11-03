@@ -66,7 +66,7 @@ bridge_socket = /run/chaanbot-ai/bridge.sock
 If `[modules] enabled` is an explicit allowlist, add `ai`. Remove `ai` from any
 module-disabled list. AI being disabled does not initialize AI tables or affect
 other modules. The legacy bot itself can still be used without the AI bridge;
-the AI feature and installer require Python 3.11+.
+all supported installations require Python 3.11.5+.
 
 ## Security boundaries
 

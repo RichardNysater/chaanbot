@@ -13,7 +13,7 @@ Bot is under active development and severe breaking changes should be expected u
 
 # Install instructions
 
-Chaanbot requires Python 3.
+Chaanbot requires Python 3.11.5 or later.
 
 Add user for bot. Not required but recommended:
 
@@ -73,7 +73,7 @@ sudo systemctl enable chaanbot
 
 ## Upgrading from 1.x to 2.0
 
-In 2.0 access token login is (hopefully temporarily) disabled, use password login instead. See chaanbot.cfg.sample for
+In 2.0 access token login is (hopefully temporarily) disabled, use password login instead. See [the sample configuration](chaanbot/chaanbot.cfg.sample) for
 how to set password.
 
 ## Commands

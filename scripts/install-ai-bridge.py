@@ -111,7 +111,7 @@ def main():
     # Dependencies are installed into a root-owned venv, never imported from the
     # bot-owned environment. Install the trusted source/dependencies you reviewed.
     run(bridge_python, '-I', '-m', 'pip', 'install', '--disable-pip-version-check',
-        'aiohttp>=3.9,<4')
+        'aiohttp>=3.14.5,<4')
     shutil.copyfile(binary, ROOT / 'codex')
     (ROOT / 'codex').chmod(0o755)
     shutil.copyfile(repo / 'chaanbot/codex_bridge.py', ROOT / 'bridge.py')

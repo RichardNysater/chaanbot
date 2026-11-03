@@ -79,3 +79,19 @@ class TestConsoleEntryPoint(TestCase):
                     start.run()
         self.assertEqual(cleaned, [True])
         self.assertTrue(loop.is_closed())
+
+
+class TestSampleConfiguration(TestCase):
+    def test_create_user_config_uses_packaged_sample(self):
+        import configparser
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from chaanbot.start import create_user_config
+
+        with TemporaryDirectory() as directory:
+            destination = Path(directory) / "chaanbot.cfg"
+            create_user_config(destination)
+            config = configparser.ConfigParser()
+            config.read(destination)
+        self.assertTrue(config.has_section("chaanbot"))
+        self.assertFalse(config.getboolean("ai", "enabled"))

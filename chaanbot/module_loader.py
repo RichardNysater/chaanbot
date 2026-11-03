@@ -2,7 +2,7 @@ import importlib
 import logging
 from typing import List, Any
 
-import pkg_resources
+from importlib import resources
 
 logger = logging.getLogger("module_loader")
 
@@ -44,16 +44,13 @@ class ModuleLoader:
     @staticmethod
     def _get_files_in_module_dirs() -> List[str]:
         """ Get files in the chaanbot/module folder and its subfolders"""
-        files = pkg_resources.resource_listdir("chaanbot", "modules")
-        all_files = files.copy()
-        logger.debug("All files in modules folder are: {}".format(all_files))
-        for file in files:
-            if pkg_resources.isdir("chaanbot/modules/{}".format(file)):
-                logger.debug("{} is a folder".format(file))
-                subfolder_modules = pkg_resources.resource_listdir("chaanbot", "modules/{}".format(file))
-                logger.debug("Got files from inside folder: {}".format(subfolder_modules))
-                for subfolder_module in subfolder_modules:
-                    all_files.append("{}/{}".format(file, subfolder_module))
+        module_root = resources.files("chaanbot.modules")
+        entries = sorted(module_root.iterdir(), key=lambda entry: entry.name)
+        all_files = [entry.name for entry in entries]
+        for entry in entries:
+            if entry.is_dir():
+                all_files.extend("{}/{}".format(entry.name, child.name)
+                                 for child in sorted(entry.iterdir(), key=lambda child: child.name))
         return all_files
 
     def _load_module(self, config, matrix, relative_module_path) -> Any:
