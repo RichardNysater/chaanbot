@@ -38,6 +38,7 @@ setuptools.setup(
     url="https://github.com/RichardNysater/chaanbot",
     packages=setuptools.find_packages(exclude=["chaanbot.modules.private"]),
     install_requires=["matrix-nio", "appdirs", "requests", "beautifulsoup4"],
+    extras_require={"ai": ["aiohttp>=3.9,<4"]},
     package_data={'': ['chaanbot.cfg.sample']},
     classifiers=[
         "Development Status :: 4 - Beta",
@@ -54,7 +55,7 @@ setuptools.setup(
     python_requires=">=3.5",
     entry_points={
         'console_scripts': [
-            'chaanbot=chaanbot.start:main',
+            'chaanbot=chaanbot.start:run',
         ],
     },
     test_suite="tests",

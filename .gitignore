@@ -33,3 +33,10 @@ chaanbot.cfg
 /docs/build/
 /htmlcov
 /pip-wheel-metadata/
+
+# Local AI/Codex authentication and database sidecars
+.ai-auth/
+.codex/
+auth.json
+*.db-*
+*.sqlite*

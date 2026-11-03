@@ -27,3 +27,9 @@ class ModuleRunner:
 
     def _is_old_event(self, event: RoomMessage):
         return (time.time() - (event.server_timestamp / 1000)) > self.MAX_AGE_OF_EVENT_TO_BE_NEW_SECONDS
+
+    async def aclose(self):
+        for module in self.loaded_modules:
+            close = getattr(module, "aclose", None)
+            if close is not None:
+                await close()
