@@ -39,11 +39,12 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         self.config = configparser.ConfigParser()
         self.config.read_dict({"ai": {"enabled": "true", "bridge_socket": self.temp.name + "/bridge.sock",
                                       "context_rooms": "!room:example.org"}})
-        self.matrix = SimpleNamespace(send_text_to_room=AsyncMock(), recent_messages=AsyncMock(return_value=[]))
+        self.matrix = SimpleNamespace(send_text_to_room=AsyncMock(), recent_messages=AsyncMock(return_value=[]),
+                                      resolve_user_id=Matrix.resolve_user_id)
         self.bots = []
         self.bot = self.make_bot()
         self.bot._request = AsyncMock(return_value=completed())
-        self.room = SimpleNamespace(room_id="!room:example.org")
+        self.room = SimpleNamespace(room_id="!room:example.org", users={})
         self.event = SimpleNamespace(sender="@alice:example.org", event_id="$event1")
 
     def make_bot(self):
@@ -110,12 +111,146 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(payload["input"][-1]["content"]),
                          {"sender": self.event.sender, "query": "First line\nSecond line"})
 
-    async def test_removed_reset_does_not_fetch_context_or_consume_usage(self):
+    async def test_non_admin_reset_does_not_fetch_context_or_consume_usage(self):
         await self.bot.run(self.room, self.event, "!ai reset")
-        self.assertIn("Unsupported command", self.matrix.send_text_to_room.call_args.args[0])
+        self.assertIn("Only configured AI admins", self.matrix.send_text_to_room.call_args.args[0])
         self.matrix.recent_messages.assert_not_called()
         self.bot._request.assert_not_called()
         self.assertEqual(self.bot.storage.usage(self.event.sender), (0, 0))
+
+    def make_admin_bot(self):
+        self.config.set("ai", "admins", "@admin:example.org")
+        bot = self.make_bot()
+        bot._request = AsyncMock(return_value=completed())
+        return bot
+
+    async def test_admin_reset_clears_personal_limits_and_keeps_global_usage_and_dedup(self):
+        target = self.event.sender
+        self.assertIsNone(self.bot.storage.reserve("$charged", target, 100))
+        self.bot.storage.finish("$charged", 100, True, "sent")
+        bot = self.make_admin_bot()
+        event = SimpleNamespace(sender="@admin:example.org", event_id="$reset")
+        await bot.run(self.room, event, "!ai reset " + target)
+        self.assertEqual(bot.storage.usage(target), (0, 0))
+        self.assertIn(target, self.matrix.send_text_to_room.call_args.args[0])
+        with closing(self.database.connect()) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*),SUM(tokens) FROM ai_requests WHERE chargeable=1").fetchone(), (1, 100))
+            self.assertEqual(conn.execute("SELECT admin_id,target_user_id FROM ai_limit_resets").fetchone(), (event.sender, target))
+        self.assertIn("already been handled", bot.storage.reserve("$charged", target, 100))
+        self.assertIsNone(bot.storage.reserve("$fresh", target, 100))
+        bot.storage.finish("$fresh", 100, True, "sent")
+        bot._request.assert_not_called()
+        self.matrix.recent_messages.assert_not_called()
+
+    async def test_admin_reset_does_not_waive_global_budget(self):
+        self.assertIsNone(self.bot.storage.reserve("$global", self.event.sender, 100))
+        self.bot.storage.finish("$global", 100, True, "sent")
+        bot = self.make_admin_bot()
+        bot.storage.global_daily_requests = 1
+        await bot.run(self.room, SimpleNamespace(sender="@admin:example.org", event_id="$reset-global"),
+                      "!ai reset " + self.event.sender)
+        self.assertIn("bot's daily", bot.storage.reserve("$still-global", self.event.sender, 100))
+
+    async def test_reset_permission_uses_exact_sender_id_before_target_resolution(self):
+        bot = self.make_admin_bot()
+        self.matrix.resolve_user_id = MagicMock(side_effect=AssertionError("Must not resolve targets"))
+        for sender in (self.event.sender, "@ADMIN:example.org", "@admin:other.org"):
+            await bot.run(self.room, SimpleNamespace(sender=sender, event_id="$denied" + sender), "!ai reset Alice")
+            self.assertIn("Only configured AI admins", self.matrix.send_text_to_room.call_args.args[0])
+        self.matrix.resolve_user_id.assert_not_called()
+        bot._request.assert_not_called()
+        with closing(self.database.connect()) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM ai_limit_resets").fetchone()[0], 0)
+
+    async def test_admin_can_reset_unique_display_name_and_short_username(self):
+        bot = self.make_admin_bot()
+        self.room.users = {self.event.sender: SimpleNamespace(user_id=self.event.sender, display_name="Alice Doe")}
+        for number, name in enumerate(("alice doe", "alice", "@alice")):
+            event = SimpleNamespace(sender="@admin:example.org", event_id="$named-reset" + str(number))
+            await bot.run(self.room, event, "!aifast ReSeT " + name)
+            self.assertIn("Reset daily AI", self.matrix.send_text_to_room.call_args.args[0])
+        bot._request.assert_not_called()
+
+    async def test_ambiguous_and_unknown_reset_names_do_not_modify_limits(self):
+        bot = self.make_admin_bot()
+        self.room.users = {
+            "@alice:example.org": SimpleNamespace(user_id="@alice:example.org", display_name="Same name"),
+            "@other:example.org": SimpleNamespace(user_id="@other:example.org", display_name="Same name"),
+        }
+        for number, name in enumerate(("Same name", "unknown")):
+            await bot.run(self.room, SimpleNamespace(sender="@admin:example.org", event_id="$name-error" + str(number)),
+                          "!ai reset " + name)
+            self.assertIn("full Matrix user ID", self.matrix.send_text_to_room.call_args.args[0])
+        with closing(self.database.connect()) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM ai_limit_resets").fetchone()[0], 0)
+
+    async def test_admin_reset_refuses_active_and_pending_target(self):
+        bot = self.make_admin_bot()
+        target = self.event.sender
+        bot._users.add(target)
+        await bot.run(self.room, SimpleNamespace(sender="@admin:example.org", event_id="$busy-memory"), "!ai reset " + target)
+        self.assertIn("current AI request", self.matrix.send_text_to_room.call_args.args[0])
+        bot._users.clear()
+        self.assertIsNone(bot.storage.reserve("$pending-admin", target, 100))
+        await bot.run(self.room, SimpleNamespace(sender="@admin:example.org", event_id="$busy-storage"), "!ai reset " + target)
+        self.assertIn("current AI request", self.matrix.send_text_to_room.call_args.args[0])
+        self.assertEqual(bot.storage.usage(target), (1, 100))
+        with closing(self.database.connect()) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM ai_limit_resets").fetchone()[0], 0)
+
+    async def test_replayed_admin_reset_does_not_clear_new_usage(self):
+        bot = self.make_admin_bot()
+        target = self.event.sender
+        event = SimpleNamespace(sender="@admin:example.org", event_id="$reset-once")
+        await bot.run(self.room, event, "!ai reset " + target)
+        self.assertIsNone(bot.storage.reserve("$after-reset", target, 100))
+        bot.storage.finish("$after-reset", 100, True, "sent")
+        await bot.run(self.room, event, "!ai reset " + target)
+        self.assertEqual(bot.storage.usage(target), (1, 100))
+        self.assertIn("already been handled", self.matrix.send_text_to_room.call_args.args[0])
+
+    async def test_storage_reset_rolls_back_if_audit_write_fails(self):
+        self.assertIsNone(self.bot.storage.reserve("$before-failed-reset", self.event.sender, 100))
+        self.bot.storage.finish("$before-failed-reset", 100, True, "sent")
+        with closing(self.database.connect()) as conn, conn:
+            conn.execute("CREATE TRIGGER fail_reset_audit BEFORE INSERT ON ai_limit_resets "
+                         "BEGIN SELECT RAISE(ABORT, 'test failure'); END")
+        bot = self.make_admin_bot()
+        await bot.run(self.room, SimpleNamespace(sender="@admin:example.org", event_id="$failed-reset"),
+                      "!ai reset " + self.event.sender)
+        self.assertEqual(bot.storage.usage(self.event.sender), (1, 100))
+        self.assertIn("could not be confirmed", self.matrix.send_text_to_room.call_args.args[0])
+
+    async def test_admin_reset_preserves_other_users_and_allows_stale_crash_guard(self):
+        target = self.event.sender
+        self.assertIsNone(self.bot.storage.reserve("$stale-reset", target, 100))
+        self.assertIsNone(self.bot.storage.reserve("$other-user", "@bob:example.org", 50))
+        self.bot.storage.finish("$other-user", 50, True, "sent")
+        with closing(self.database.connect()) as conn, conn:
+            conn.execute("UPDATE ai_requests SET started=? WHERE event_id='$stale-reset'", (time.time() - 181,))
+        bot = self.make_admin_bot()
+        await bot.run(self.room, SimpleNamespace(sender="@admin:example.org", event_id="$reset-stale"), "!ai reset " + target)
+        self.assertEqual(bot.storage.usage(target), (0, 0))
+        self.assertEqual(bot.storage.usage("@bob:example.org"), (1, 50))
+        with closing(self.database.connect()) as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*),SUM(tokens) FROM ai_requests WHERE chargeable=1").fetchone(), (2, 150))
+
+    async def test_admin_configuration_defaults_to_no_admins_and_rejects_names(self):
+        self.assertEqual(self.bot.admins, frozenset())
+        for value in ("admin", "@admin", "*", "@*:example.org", "@admin:example.org, alice"):
+            self.config.set("ai", "admins", value)
+            with self.assertRaises(ValueError):
+                Ai(self.config, self.matrix, self.database, None)
+
+    async def test_admin_help_and_missing_reset_target(self):
+        bot = self.make_admin_bot()
+        event = SimpleNamespace(sender="@admin:example.org", event_id="$admin-help")
+        await bot.run(self.room, event, "!ai help")
+        self.assertIn("Admins: !ai reset", self.matrix.send_text_to_room.call_args.args[0])
+        await bot.run(self.room, event, "!ai reset")
+        self.assertIn("Use !ai reset", self.matrix.send_text_to_room.call_args.args[0])
+        self.matrix.recent_messages.assert_not_called()
+        bot._request.assert_not_called()
 
     async def test_storage_preserves_requests_from_before_delivery_columns(self):
         database = Database(self.temp.name + "/legacy.db")

@@ -67,6 +67,8 @@ listen_rooms = #example:example.com, #test:example.com, !uYiOKapkBcMKMbUlxu:exam
 # Optional, private-use Codex subscription bridge. Requires Python 3.11+ and Linux.
 # Read docs/ai.md and install/verify the isolated bridge before enabling.
 enabled = false
+# AI admins are exact Matrix user IDs; empty means nobody can reset limits.
+# admins = @admin:example.org
 # bridge_socket = /run/chaanbot-ai/bridge.sock
 # cooldown_seconds = 30
 # daily_requests = 20

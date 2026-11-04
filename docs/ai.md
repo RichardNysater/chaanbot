@@ -48,14 +48,49 @@ events as standalone messages are excluded. Edit histories are not reconstructed
 If retrieval fails or times out, no AI request is sent and the reservation is
 refunded. Empty accessible history is valid and the question can still be asked.
 
-There is no separate personal AI history and no `!ai reset` command. Existing
-personal history tables are left untouched but are no longer read or written.
+There is no separate personal AI history. The admin-only `!ai reset <user>`
+command resets personal usage limits, not context. Existing personal history
+tables are left untouched but are no longer read or written.
 Recent room context is not saved locally. Request accounting remains persistent
 in SQLite and usage limits remain per user across rooms. Replies are visible to
 everyone in the room. Normal Codex conversations and other rooms are not supplied.
 Ensure participants in opted-in rooms understand that asking AI shares recent
 room text with OpenAI. Help replies indicate whether context is enabled in the
 current room.
+
+## AI admins and limit resets
+
+Configure exact, case-sensitive Matrix user IDs in a comma-separated allowlist:
+
+```ini
+[ai]
+admins = @admin:example.org
+```
+
+An absent or empty `admins` grants nobody this role. Display names, room power
+levels, and user names mentioned in messages do not grant admin access. Restart
+the bot after changing the configuration. Keep deployment-specific admin IDs
+in the private configuration rather than the repository.
+
+An AI admin can run `!ai reset Alice`, `!ai reset @alice:example.org`, or the
+same subcommand through `!aifast`. A short username or complete display name
+must identify exactly one current room member; ambiguous or unknown names
+require a full Matrix ID. Full IDs can target users outside the current room.
+Confirmation replies identify the resolved full ID. `!ai reset` without a target
+shows syntax to admins; other users receive a permission-denied reply.
+
+Reset clears the target's personal daily request/token counters and cooldown
+across all rooms and both models. It does not change other users, the bot's
+global budget, or the actual subscription allowance. Active/queued requests
+must finish before their user's limits can be reset. Reset commands perform
+no model inference or context retrieval and are available even when the admin
+has exhausted their own limits or the bridge is unavailable.
+
+Requests retain their event IDs, usage, and delivery information. Personal
+waivers are stored separately from actual/global charges. Successful resets
+are audited in SQLite with the acting admin, target, timestamp, and command
+event ID; replaying the same command does not clear subsequent usage again.
+Database failures return an error without committing a partial reset.
 
 ## Opting a room into context
 

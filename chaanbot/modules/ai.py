@@ -5,6 +5,7 @@ Available commands:
 !aifast [QUERY]         - Ask the same question using a faster, lower-cost model.
 !ai help                - Show usage and explain where queries are sent.
 !ai usage               - Show your daily AI usage across all rooms.
+!ai reset [NAME]        - AI admins can reset a user's personal limits and cooldown.
 
 Usage example:
 !ai What is the capital of Sweden?
@@ -90,6 +91,11 @@ class Ai:
             self.enabled = False
             logger.error("The optional AI module requires Python 3.11 or later")
             return
+        configured_admins = config.get("ai", "admins", fallback="", raw=True)
+        self.admins = frozenset(user.strip() for user in configured_admins.split(",") if user.strip())
+        if any(not re.fullmatch(r"@[^:\s]+:[^\s]+", user) or "*" in user or "?" in user
+               for user in self.admins):
+            raise ValueError("[ai] admins must contain exact full Matrix user IDs")
         self.database = database
         self.bridge = BridgeConnection(config.get("ai", "bridge_socket", fallback=str(SOCKET), raw=True))
         cooldown = self._setting(config, "cooldown_seconds", 30)
@@ -142,11 +148,13 @@ class Ai:
                           "including the bot, are sent to OpenAI. ").format(self.context_messages)
             else:
                 notice = "Your question is sent to OpenAI. Room-message context is disabled here. "
+            admin_help = " Admins: !ai reset <name or @user:server>." if event.sender in self.admins else ""
             await self._send(room, "Use !ai <query>, !aifast <query>, or !ai usage. " + notice
-                             + "Replies are visible in this room.")
+                             + "Replies are visible in this room." + admin_help)
             return True
-        if query.lower() == "reset":
-            await self._send(room, "Unsupported command. Use !ai <query>, !aifast <query>, or !ai usage.")
+        parts = query.split(None, 1)
+        if parts[0].lower() == "reset":
+            await self._reset_limits(room, event, parts[1] if len(parts) > 1 else "")
             return True
         if not self.database:
             await self._send(room, "AI requires a configured SQLite database.")
@@ -272,6 +280,39 @@ class Ai:
 
     async def _send(self, room: MatrixRoom, text: str) -> None:
         await self.matrix.send_text_to_room(text, room.room_id)
+
+    async def _reset_limits(self, room: MatrixRoom, event: RoomMessage, name: str) -> None:
+        if event.sender not in self.admins:
+            await self._safe_send(room, "Only configured AI admins can reset limits.")
+            return
+        if not name.strip():
+            await self._safe_send(room, "Use !ai reset <name or @user:server>.")
+            return
+        if not self.database:
+            await self._safe_send(room, "AI requires a configured SQLite database.")
+            return
+        try:
+            user_id = self.matrix.resolve_user_id(room, name)
+        except ValueError as error:
+            await self._safe_send(room, str(error))
+            return
+        if user_id in self._users:
+            await self._safe_send(room, "Wait for that user's current AI request to finish before resetting limits.")
+            return
+        try:
+            result = self.storage.reset_user_limits(event.event_id, event.sender, user_id)
+        except Exception as error:
+            logger.warning("AI limit reset failed (%s)", type(error).__name__)
+            await self._safe_send(room, "AI storage is unavailable. The limit reset could not be confirmed.")
+            return
+        if result == "busy":
+            reply = "Wait for that user's current AI request to finish before resetting limits."
+        elif result == "duplicate":
+            reply = "This reset command has already been handled."
+        else:
+            reply = ("Reset daily AI request/token limits and cooldown for {} across all rooms. "
+                     "The bot's global limits and subscription allowance still apply.").format(user_id)
+        await self._safe_send(room, reply)
 
     def _usage(self, user_id: str) -> str:
         count, tokens = self.storage.usage(user_id)

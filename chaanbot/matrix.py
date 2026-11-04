@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from typing import Optional, Dict
 
 from nio import MatrixRoom, AsyncClient, MatrixUser, RoomSendResponse, RoomContextResponse, RoomMessagesResponse
@@ -61,6 +62,31 @@ class Matrix:
         presence = self.get_presence(room_id, user_id)
         logger.debug("presence: {}".format(presence))
         return presence == "online"
+
+    @staticmethod
+    def resolve_user_id(room: MatrixRoom, name: str) -> str:
+        """Resolve a full ID or one unambiguous member display name/localpart."""
+        name = name.strip()
+        if name.startswith("@") and ":" in name:
+            if not re.fullmatch(r"@[^:\s]+:[^\s]+", name):
+                raise ValueError("Use a valid full Matrix user ID.")
+            return name
+        lookup = name.removeprefix("@").casefold()
+        matches = set()
+        for user in room.users.values():
+            user_id = user.user_id
+            if not isinstance(user_id, str) or not re.fullmatch(r"@[^:\s]+:[^\s]+", user_id):
+                continue
+            localpart = user_id[1:].split(":", 1)[0]
+            display_name = user.display_name
+            if (lookup == localpart.casefold()
+                    or isinstance(display_name, str) and name.casefold() == display_name.casefold()):
+                matches.add(user_id)
+        if not matches:
+            raise ValueError("No matching user in this room. Use a full Matrix user ID.")
+        if len(matches) != 1:
+            raise ValueError("That name matches multiple users. Use a full Matrix user ID.")
+        return matches.pop()
 
     def get_presence(self, room_id, user_id):
         """Returns an object like this:
