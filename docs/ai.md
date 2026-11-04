@@ -2,7 +2,7 @@
 
 `!ai <query>` uses `gpt-6.1-sol` with medium reasoning through an existing
 Codex ChatGPT login. This module is disabled by default. It requires Python
-3.11+, a Linux/systemd bridge host, and the reviewed Codex CLI 0.166.0 runtime.
+3.11.5+, a Linux/systemd bridge host, and the reviewed Codex CLI 0.166.0 runtime.
 It does not use an API key or fall back to API-key billing.
 
 This integration is intended for a personal, trusted-room bot. Every account
@@ -15,15 +15,31 @@ Consult OpenAI's current integration guidance for other deployment models.
 ## Commands and data
 
 - `!ai <query>` asks a question, using web lookup when useful.
-- `!ai help` explains the commands and that queries go to OpenAI.
-- `!ai reset` clears your AI history in this room without clearing usage.
+- `!ai help` explains the commands and that queries and recent room messages go to OpenAI.
 - `!ai usage` reports local daily usage across all rooms.
 
-Only the sender's query and bounded AI history from the current room are sent.
-History is stored in the configured SQLite database under `(room ID, user ID)`;
-other room messages and normal Codex conversations are not supplied. Replies
-are visible to everyone in the room. Reset does not remove Matrix messages.
-Do not send information you do not want shared with the room and provider.
+Each query sends up to 20 preceding text messages from the same Matrix room,
+including messages from other participants and Chaanbot's replies. Every message
+is labelled with its sender's full Matrix user ID. The current request is sent
+once, separately with the requester's ID. Messages after the triggering command
+are excluded, even when the AI job waits in the queue. Room messages are untrusted
+background data, not instructions or grants of authority.
+
+History is fetched from Matrix for each question, so it works after bot restarts.
+Retrieval allows at most five API calls and ten seconds total. It may return fewer
+than 20 messages because of history access, filtering, or size limits. Only plain
+text is included: attachments, membership events, redacted messages, and edit
+events as standalone messages are excluded. Edit histories are not reconstructed.
+If retrieval fails or times out, no AI request is sent and the reservation is
+refunded. Empty accessible history is valid and the question can still be asked.
+
+There is no separate personal AI history and no `!ai reset` command. Existing
+personal history tables are left untouched but are no longer read or written.
+Recent room context is not saved locally. Request accounting remains persistent
+in SQLite and usage limits remain per user across rooms. Replies are visible to
+everyone in the room. Normal Codex conversations and other rooms are not supplied.
+Ensure room participants understand that asking AI shares recent room text with
+OpenAI.
 
 ## Isolated bridge installation
 
@@ -107,16 +123,23 @@ Defaults, adjustable in `[ai]`:
 | `global_daily_tokens` | 1000000 |
 | `request_token_reserve` | 40000 |
 | `max_query_bytes` | 4000 |
-| `history_turns` | 6 |
-| `history_bytes` | 12000 |
-| `history_ttl_seconds` | 86400 |
+| `context_messages` | 20 |
+| `context_bytes` | 12000 |
 | `max_answer_bytes` | 6000 |
 
-Limits must be positive. Query/history/turn limits cannot exceed their listed
-bounds; answer size can be at most 12000 bytes. Replies are shortened on UTF-8
-boundaries if necessary and split into messages of at most 3000 UTF-8 bytes.
-Matrix delivery results are checked. Only fully delivered answers enter history;
-request delivery status is recorded as none/sent/partial/failed.
+Limits must be positive. Query/context/message-count limits cannot exceed their
+listed bounds; answer size can be at most 12000 bytes. The newest whole context
+messages that fit the serialized byte budget are retained. If the newest message
+alone is too large, its body is shortened safely with a marker. Sender IDs remain
+intact. The complete input must also fit the bridge's existing encoded size limit.
+Replies are shortened on UTF-8 boundaries if necessary and split into messages of
+at most 3000 UTF-8 bytes. Matrix delivery results are checked; request delivery
+status is recorded as none/sent/partial/failed.
+
+For existing configurations, `history_bytes` is accepted as a fallback when
+`context_bytes` is absent. `history_turns` and `history_ttl_seconds` no longer
+apply. Context is selected by room-message count, not by personal conversation
+turns or a local expiry timer.
 
 AI uses tracked background jobs: at most three admitted jobs, one executing and
 two queued, with one pending request per Matrix user. Ordinary bot commands and
@@ -128,12 +151,12 @@ Daily budgets use UTC and survive restarts. A transaction reserves tokens before
 queueing, replacing the reservation with reported input/output usage on completion.
 Confirmed pre-inference failures release request/token/cooldown charges; their event
 IDs remain for deduplication. Unknown usage after interruption retains the reservation.
-Queued jobs cancelled before execution are refunded. History expires after 24 hours,
-purged on the next query. Old/in-flight guards expire 180 seconds after a process crash.
+Queued jobs cancelled before execution are refunded. Old/in-flight guards expire
+180 seconds after a process crash.
 
 Token allowances are estimates, not hard provider caps. Reasoning/search usage may
 exceed a reservation. This route has no per-request generation/search-call cap;
-request limits, bounded input/history and the 120-second timeout provide additional
+request limits, bounded input/context and the 120-second timeout provide additional
 controls. Codex can retry transport failures internally. Generated answers that
 fail Matrix delivery still consume inference usage. Check the ChatGPT usage
 dashboard for the actual subscription allowance and reset time.

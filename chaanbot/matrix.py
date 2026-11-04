@@ -1,9 +1,14 @@
+import asyncio
 import logging
 from typing import Optional, Dict
 
-from nio import MatrixRoom, AsyncClient, MatrixUser, RoomSendResponse
+from nio import MatrixRoom, AsyncClient, MatrixUser, RoomSendResponse, RoomContextResponse, RoomMessagesResponse
 
 logger = logging.getLogger("matrix_utility")
+
+
+class RoomHistoryError(RuntimeError):
+    """Recent room messages could not be fetched safely."""
 
 
 class Matrix:
@@ -67,6 +72,59 @@ class Matrix:
         }
         """
         return self.matrix_client.rooms[room_id].users[user_id].presence
+
+    async def recent_messages(self, room_id: str, event_id: str, limit: int = 20) -> list[dict]:
+        """Get preceding text messages, including bot replies, in chronological order."""
+        if not 1 <= limit <= 20:
+            raise ValueError("Room context limit must be between 1 and 20")
+        messages = []
+        seen_events = {event_id}
+
+        def collect(events):
+            for event in events:
+                source = getattr(event, "source", {})
+                current_id = source.get("event_id")
+                if not current_id or current_id in seen_events:
+                    continue
+                seen_events.add(current_id)
+                content = source.get("content", {})
+                if (source.get("type") != "m.room.message" or content.get("msgtype") != "m.text"
+                        or source.get("unsigned", {}).get("redacted_because")
+                        or content.get("m.relates_to", {}).get("rel_type") == "m.replace"):
+                    continue
+                sender = source.get("sender")
+                body = content.get("body")
+                if not isinstance(sender, str) or not isinstance(body, str) or not body.strip():
+                    continue
+                messages.append({"sender": sender, "message": body})
+                if len(messages) == limit:
+                    break
+
+        try:
+            async with asyncio.timeout(10):
+                response = await self.matrix_client.room_context(room_id, event_id, limit=40)
+                if (not isinstance(response, RoomContextResponse) or response.room_id != room_id
+                        or getattr(response.event, "event_id", None) != event_id):
+                    raise RoomHistoryError("Invalid room context response")
+                collect(response.events_before)
+                token = response.start
+                seen_tokens = set()
+                for unused in range(4):
+                    if len(messages) >= limit or not token or token in seen_tokens:
+                        break
+                    seen_tokens.add(token)
+                    response = await self.matrix_client.room_messages(
+                        room_id, start=token, limit=50,
+                        message_filter={"types": ["m.room.message"]})
+                    if not isinstance(response, RoomMessagesResponse) or response.room_id != room_id:
+                        raise RoomHistoryError("Invalid room history response")
+                    collect(response.chunk)
+                    token = response.end
+                    if not response.chunk:
+                        break
+        except Exception as error:
+            raise RoomHistoryError("Could not retrieve recent room messages") from error
+        return list(reversed(messages))
 
     async def send_text_to_room(self, message: str, room_id: str):
         content = {
