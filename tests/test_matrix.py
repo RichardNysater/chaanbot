@@ -148,3 +148,118 @@ class TestMatrixUtility(IsolatedAsyncioTestCase):
         mocked_room.users = {user_id: mocked_user}
         rooms = {room_id: mocked_room}
         self.matrix.matrix_client.rooms = rooms
+
+
+class TestRecentRoomMessages(IsolatedAsyncioTestCase):
+    def setUp(self):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock
+        config = Mock()
+        config.get.return_value = None
+        self.client = SimpleNamespace(room_context=AsyncMock(), room_messages=AsyncMock())
+        self.matrix = Matrix(config, self.client)
+
+    @staticmethod
+    def event(event_id, sender="@alice:example.org", body="Hello", **content):
+        from types import SimpleNamespace
+        return SimpleNamespace(event_id=event_id, source={
+            "event_id": event_id, "sender": sender, "type": "m.room.message",
+            "content": {"msgtype": "m.text", "body": body, **content}})
+
+    def context(self, before=(), after=(), token=None):
+        from nio import RoomContextResponse
+        return RoomContextResponse("!room", token, "after", self.event("$ask"), list(before), list(after), [])
+
+    async def test_twenty_messages_include_bot_and_ignore_future_events(self):
+        events = [self.event("$" + str(n), "@bot:example.org" if n % 2 else "@alice:example.org", str(n))
+                  for n in range(25)]
+        self.client.room_context.return_value = self.context(reversed(events), [self.event("$future")])
+        result = await self.matrix.recent_messages("!room", "$ask")
+        self.assertEqual([item["message"] for item in result], [str(n) for n in range(5, 25)])
+        self.assertIn("@bot:example.org", {item["sender"] for item in result})
+        self.client.room_context.assert_awaited_once_with("!room", "$ask", limit=40)
+        self.client.room_messages.assert_not_called()
+
+    async def test_pagination_filters_non_text_edits_redactions_and_duplicates(self):
+        from nio import RoomMessagesResponse
+        media = self.event("$media", msgtype="m.image")
+        edit = self.event("$edit", **{"m.relates_to": {"rel_type": "m.replace"}})
+        redacted = self.event("$redacted")
+        redacted.source["unsigned"] = {"redacted_because": {"type": "m.room.redaction"}}
+        member = self.event("$member")
+        member.source["type"] = "m.room.member"
+        nearest = self.event("$new", body="New")
+        self.client.room_context.return_value = self.context(
+            [self.event("$ask"), nearest, media, edit, redacted, member, self.event("$blank", body=" ")],
+            [self.event("$future")], "older")
+        self.client.room_messages.return_value = RoomMessagesResponse(
+            "!room", [nearest, self.event("$old", "@bob:example.org", "Old"), self.event("$ask")], "older", None)
+        result = await self.matrix.recent_messages("!room", "$ask")
+        self.assertEqual(result, [{"sender": "@bob:example.org", "message": "Old"},
+                                  {"sender": "@alice:example.org", "message": "New"}])
+        self.client.room_messages.assert_awaited_once_with(
+            "!room", start="older", limit=50, message_filter={"types": ["m.room.message"]})
+
+    async def test_empty_history_is_valid(self):
+        self.client.room_context.return_value = self.context()
+        self.assertEqual(await self.matrix.recent_messages("!room", "$ask"), [])
+        self.client.room_messages.assert_not_called()
+
+    async def test_pagination_is_bounded_to_five_requests(self):
+        from nio import RoomMessagesResponse
+        self.client.room_context.return_value = self.context(token="0")
+        self.client.room_messages.side_effect = [
+            RoomMessagesResponse("!room", [self.event("$media" + str(n), msgtype="m.image")], str(n), str(n + 1))
+            for n in range(4)]
+        self.assertEqual(await self.matrix.recent_messages("!room", "$ask"), [])
+        self.assertEqual(self.client.room_messages.await_count, 4)
+
+    async def test_repeated_pagination_token_stops(self):
+        from nio import RoomMessagesResponse
+        self.client.room_context.return_value = self.context(token="same")
+        self.client.room_messages.return_value = RoomMessagesResponse("!room", [self.event("$old")], "same", "same")
+        self.assertEqual(len(await self.matrix.recent_messages("!room", "$ask")), 1)
+        self.client.room_messages.assert_awaited_once()
+
+    async def test_context_errors_and_timeout_are_reported(self):
+        import asyncio
+        from chaanbot.matrix import RoomHistoryError
+        for error in (RuntimeError("unavailable"), asyncio.TimeoutError()):
+            self.client.room_context.side_effect = error
+            with self.assertRaises(RoomHistoryError):
+                await self.matrix.recent_messages("!room", "$ask")
+
+    async def test_total_history_timeout_is_enforced(self):
+        import asyncio
+        from unittest.mock import patch
+        from chaanbot.matrix import RoomHistoryError
+        original_timeout = asyncio.timeout
+        async def wait(*args, **kwargs):
+            await asyncio.Event().wait()
+        self.client.room_context.side_effect = wait
+        with patch("chaanbot.matrix.asyncio.timeout", side_effect=lambda seconds: original_timeout(0.01)) as timeout:
+            with self.assertRaises(RoomHistoryError):
+                await self.matrix.recent_messages("!room", "$ask")
+            timeout.assert_called_once_with(10)
+
+    async def test_wrong_room_or_anchor_is_rejected(self):
+        from chaanbot.matrix import RoomHistoryError
+        for field, value in (("room_id", "!other-room"), ("event", self.event("$other-event"))):
+            response = self.context([self.event("$old")])
+            setattr(response, field, value)
+            self.client.room_context.return_value = response
+            with self.assertRaises(RoomHistoryError):
+                await self.matrix.recent_messages("!room", "$ask")
+
+    async def test_pagination_error_does_not_return_partial_context(self):
+        from chaanbot.matrix import RoomHistoryError
+        self.client.room_context.return_value = self.context([self.event("$old")], token="older")
+        self.client.room_messages.return_value = None
+        with self.assertRaises(RoomHistoryError):
+            await self.matrix.recent_messages("!room", "$ask")
+
+    async def test_cancellation_propagates(self):
+        import asyncio
+        self.client.room_context.side_effect = asyncio.CancelledError()
+        with self.assertRaises(asyncio.CancelledError):
+            await self.matrix.recent_messages("!room", "$ask")

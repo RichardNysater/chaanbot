@@ -75,7 +75,7 @@ enabled = false
 # global_daily_tokens = 1000000
 # request_token_reserve = 40000
 # max_query_bytes = 4000
-# history_turns = 6
-# history_bytes = 12000
-# history_ttl_seconds = 86400
+# context_messages = 20
+# context_bytes = 12000
+# Includes preceding room text from everyone, including the bot, when asking AI.
 # max_answer_bytes = 6000
