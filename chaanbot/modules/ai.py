@@ -2,6 +2,7 @@
 
 Available commands:
 !ai [QUERY]             - Ask a question using recent messages in this room.
+!aifast [QUERY]         - Ask the same question using a faster, lower-cost model.
 !ai help                - Show usage and explain where queries are sent.
 !ai usage               - Show your daily AI usage across all rooms.
 
@@ -28,7 +29,7 @@ from nio import MatrixRoom, RoomMessage
 
 from chaanbot import command_utility
 from chaanbot.ai_storage import AiStorage
-from chaanbot.codex_bridge import BridgeConnection, PlanError, SOCKET
+from chaanbot.codex_bridge import BridgeConnection, PlanError, PROFILES, SOCKET
 from chaanbot.database import Database
 from chaanbot.matrix import Matrix, RoomHistoryError
 
@@ -74,7 +75,7 @@ class Ai:
     always_run = False
     operations = {
         "ai": {
-            "commands": ["!ai"],
+            "commands": ["!ai", "!aifast"],
             "argument_regex": re.compile(r".*", re.DOTALL),
         }
     }
@@ -126,14 +127,15 @@ class Ai:
     async def run(self, room: MatrixRoom, event: RoomMessage, message: str) -> bool:
         if not self.should_run(message):
             return False
+        profile = "fast" if command_utility.get_command(message).lower() == "!aifast" else "standard"
         query = command_utility.get_argument(message).strip()
         if not query or query.lower() == "help":
-            await self._send(room, "Use !ai <query> or !ai usage. Your query and up to 20 preceding "
+            await self._send(room, "Use !ai <query>, !aifast <query>, or !ai usage. Your query and up to 20 preceding "
                              "room messages from everyone, including the bot, are sent to OpenAI. "
                              "Replies are visible in this room.")
             return True
         if query.lower() == "reset":
-            await self._send(room, "Unsupported command. Use !ai <query> or !ai usage.")
+            await self._send(room, "Unsupported command. Use !ai <query>, !aifast <query>, or !ai usage.")
             return True
         if not self.database:
             await self._send(room, "AI requires a configured SQLite database.")
@@ -164,7 +166,7 @@ class Ai:
             await self._send(room, rejection)
             return True
         self._users.add(event.sender)
-        task = asyncio.create_task(self._run_job(room, event, query), name="chaanbot-ai")
+        task = asyncio.create_task(self._run_job(room, event, query, profile), name="chaanbot-ai")
         self._jobs.add(task)
         task.add_done_callback(lambda done: self._job_done(done, event.event_id, event.sender))
         return True
@@ -189,12 +191,12 @@ class Ai:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _run_job(self, room: MatrixRoom, event: RoomMessage, query: str) -> None:
+    async def _run_job(self, room: MatrixRoom, event: RoomMessage, query: str, profile: str = "standard") -> None:
         entered = False
         try:
             async with self._serial:
                 entered = True
-                await self._process(room, event, query)
+                await self._process(room, event, query, profile)
         finally:
             self._users.discard(event.sender)
             if not entered:
@@ -206,11 +208,11 @@ class Ai:
         except Exception as error:
             logger.warning("AI accounting update failed (%s); reservation retained", type(error).__name__)
 
-    async def _process(self, room: MatrixRoom, event: RoomMessage, query: str) -> None:
+    async def _process(self, room: MatrixRoom, event: RoomMessage, query: str, profile: str = "standard") -> None:
         tokens, chargeable, delivery = 0, False, "none"
         try:
             context = await self.matrix.recent_messages(room.room_id, event.event_id, self.context_messages)
-            payload = self._payload(context, query, event.sender)
+            payload = self._payload(context, query, event.sender, profile)
             # From this point a failed connection may leave inference usage unknown.
             tokens, chargeable = self.request_token_reserve, True
             response = await self._request(payload)
@@ -266,7 +268,7 @@ class Ai:
                 "Manage plan allowance in ChatGPT Settings > Usage.").format(
                     count, self.storage.daily_requests, tokens, self.storage.daily_tokens)
 
-    def _payload(self, context: List[dict], query: str, sender: str) -> dict:
+    def _payload(self, context: List[dict], query: str, sender: str, profile: str = "standard") -> dict:
         def make_input(messages):
             return [
                 {"role": "user", "content": json.dumps({"room_messages": messages}, ensure_ascii=False)},
@@ -304,7 +306,8 @@ class Ai:
         if len(json.dumps(items, ensure_ascii=False).encode("utf-8")) > 20000:
             raise ValueError("AI request exceeds the encoded input limit")
         return {
-            "model": "gpt-6.1-sol",
+            "model": PROFILES[profile],
+            "profile": profile,
             "reasoning": {"effort": "medium"},
             "instructions": INSTRUCTIONS,
             "input": items,
@@ -315,13 +318,16 @@ class Ai:
 
     async def _request(self, payload: dict) -> dict:
         # Only the fixed local bridge is contacted. The bot never reads auth tokens.
+        request = {"instructions": payload["instructions"], "input": payload["input"]}
+        if payload.get("profile", "standard") != "standard":
+            request["profile"] = payload["profile"]
         connector = aiohttp.UnixConnector(path=str(self.bridge.path))
         timeout = aiohttp.ClientTimeout(total=140)
         async with aiohttp.ClientSession(
                 connector=connector, timeout=timeout,
                 json_serialize=lambda value: json.dumps(value, ensure_ascii=False)) as session:
             async with session.post(
-                "http://localhost/ask", json={"instructions": payload["instructions"], "input": payload["input"]},
+                "http://localhost/ask", json=request,
                 allow_redirects=False,
             ) as response:
                 if response.status != 200:

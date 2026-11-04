@@ -133,7 +133,8 @@ def main():
     run('systemctl', 'enable', 'chaanbot-ai.service')
     subprocess.run(['systemctl', 'reset-failed', 'chaanbot-ai.service'], check=False)
     run('systemctl', 'restart', 'chaanbot-ai.service')
-    for _ in range(60):
+    # Allow both model profiles to complete their startup schema probes.
+    for _ in range(90):
         if Path('/run/chaanbot-ai/bridge.sock').is_socket():
             break
         if subprocess.run(['systemctl', 'is-failed', '--quiet', 'chaanbot-ai.service']).returncode == 0:
@@ -145,7 +146,7 @@ def main():
         'chaanbot.codex_bridge', 'check')
     if args.restart_bot:
         run('systemctl', 'restart', 'chaanbot.service')
-    print('Bridge verified. Enable [ai] enabled = true and restart the bot to use !ai.')
+    print('Bridge verified. Enable [ai] enabled = true and restart the bot to use !ai and !aifast.')
 
 
 if __name__ == '__main__':
