@@ -17,6 +17,7 @@ SOCKET = Path("/run/chaanbot-ai/bridge.sock")
 CATALOG = ROOT / "ai-codex-model.json"
 CODEX = str(ROOT / "codex")
 EXPECTED_VERSION = "codex-cli 0.166.0"
+PROFILES = {"standard": "gpt-6.1-sol", "fast": "gpt-6-luna"}
 logger = logging.getLogger(__name__)
 
 
@@ -46,7 +47,9 @@ def clean_environment():
     return {key: value for key, value in os.environ.items() if key in allowed}
 
 
-def command(cwd, probe_url=None):
+def command(cwd, probe_url=None, profile="standard"):
+    if not isinstance(profile, str) or profile not in PROFILES:
+        raise ValueError("Invalid AI profile")
     settings = {
         "model_provider": "openai", "model_catalog_json": str(CATALOG),
         "model_reasoning_effort": "medium", "web_search": "live",
@@ -74,7 +77,7 @@ def command(cwd, probe_url=None):
             "model_providers.bridge_probe.request_max_retries": 0,
             "model_providers.bridge_probe.stream_max_retries": 0})
     result = [CODEX, "--strict-config", "exec", "--ignore-user-config", "--ignore-rules", "--ephemeral",
-              "--skip-git-repo-check", "--model", "gpt-6.1-sol",
+              "--skip-git-repo-check", "--model", PROFILES[profile],
               "--json", "--color", "never", "--cd", str(cwd)]
     for name, value in settings.items():
         encoded = ("{" + ", ".join(json.dumps(k) + " = " + json.dumps(v) for k, v in value.items()) + "}"
@@ -84,8 +87,12 @@ def command(cwd, probe_url=None):
 
 
 def validate_payload(payload):
-    if not isinstance(payload, dict) or set(payload) != {"instructions", "input"}:
+    if not isinstance(payload, dict) or set(payload) not in (
+            {"instructions", "input"}, {"instructions", "input", "profile"}):
         raise ValueError("Invalid bridge request")
+    profile = payload.get("profile", "standard")
+    if not isinstance(profile, str) or profile not in PROFILES:
+        raise ValueError("Invalid AI profile")
     if not isinstance(payload["instructions"], str) or len(payload["instructions"].encode()) > 4096:
         raise ValueError("Invalid bridge instructions")
     items = payload["input"]
@@ -120,7 +127,8 @@ async def infer(payload, cwd):
     if status.returncode != 0 or b"Logged in using ChatGPT" not in stdout + stderr:
         raise PreflightError("The bridge's Codex user must be signed in with ChatGPT.")
     try:
-        process = await asyncio.create_subprocess_exec(*command(cwd), env=env,
+        process = await asyncio.create_subprocess_exec(
+            *command(cwd, profile=payload.get("profile", "standard")), env=env,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
             start_new_session=True, limit=1024 * 1024)
     except OSError as error:
@@ -235,19 +243,21 @@ async def verify_tools(cwd):
         site = web.TCPSite(runner, "127.0.0.1", 0)
         await site.start()
         port = site._server.sockets[0].getsockname()[1]
-        process = await asyncio.create_subprocess_exec(
-            *command(cwd, "http://127.0.0.1:{}/v1".format(port)), env=clean_environment(),
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL, start_new_session=True)
-        await asyncio.wait_for(process.communicate(b"Local tool verification. Say hello."), 30)
-        requests = [value for value in captured if value.get("model") == "gpt-6.1-sol"]
-        if not requests:
-            raise ValueError("Could not verify outgoing Codex tools")
-        for value in requests:
-            exposed_tools(value)
-            if value.get("reasoning", {}).get("effort") != "medium":
-                raise ValueError("Unexpected reasoning effort")
-        print("Pinned Codex tool schema verified", flush=True)
+        for profile, model in PROFILES.items():
+            captured.clear()
+            process = await asyncio.create_subprocess_exec(
+                *command(cwd, "http://127.0.0.1:{}/v1".format(port), profile=profile), env=clean_environment(),
+                stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL, start_new_session=True)
+            await asyncio.wait_for(process.communicate(b"Local tool verification. Say hello."), 30)
+            requests = [value for value in captured if value.get("model") == model]
+            if not requests:
+                raise ValueError("Could not verify outgoing Codex tools for " + profile)
+            for value in requests:
+                exposed_tools(value)
+                if value.get("reasoning", {}).get("effort") != "medium":
+                    raise ValueError("Unexpected reasoning effort")
+            print("Pinned Codex tool schema verified for " + profile, flush=True)
     finally:
         if process is not None and process.returncode is None:
             try:

@@ -1,7 +1,8 @@
 # Optional AI command
 
-`!ai <query>` uses `gpt-6.1-sol` with medium reasoning through an existing
-Codex ChatGPT login. This module is disabled by default. It requires Python
+`!ai <query>` uses `gpt-6.1-sol`; `!aifast <query>` uses the faster, lower-cost
+`gpt-6-luna` model. Both use medium reasoning through an existing Codex ChatGPT
+login. This module is disabled by default. It requires Python
 3.11.5+, a Linux/systemd bridge host, and the reviewed Codex CLI 0.166.0 runtime.
 It does not use an API key or fall back to API-key billing.
 
@@ -14,9 +15,17 @@ Consult OpenAI's current integration guidance for other deployment models.
 
 ## Commands and data
 
-- `!ai <query>` asks a question, using web lookup when useful.
+- `!ai <query>` asks Sol a question, using web lookup when useful.
+- `!aifast <query>` asks Luna, with the same context, web lookup, and reply limits.
 - `!ai help` explains the commands and that queries and recent room messages go to OpenAI.
-- `!ai usage` reports local daily usage across all rooms.
+- `!ai usage` or `!aifast usage` reports shared local daily usage across all rooms.
+- `!aifast help` shows the same help as `!ai help`.
+
+Both commands share cooldowns, daily request/token budgets, event deduplication,
+and pending-request limits. Switching commands does not provide extra allowance.
+There is no automatic fallback to Sol if Luna is unavailable. Model access and
+subscription allowance depend on the signed-in account; this integration does
+not introduce API billing or promise a particular usage discount.
 
 Each query sends up to 20 preceding text messages from the same Matrix room,
 including messages from other participants and Chaanbot's replies. Every message
@@ -88,7 +97,9 @@ all supported installations require Python 3.11.5+.
 
 The bridge runs as the Codex login's Unix user and exposes a fixed operation
 over a restricted Unix socket, not a TCP API. Requests cannot select executables,
-arguments, providers, model names or endpoints. Home directories are hidden
+arguments, providers, arbitrary model names or endpoints. An optional profile
+selector accepts only `standard` (Sol) or `fast` (Luna); omitted profiles keep Sol
+for compatibility with older bot clients. Home directories are hidden
 except the Codex state directory needed for authentication. A separate child-tool
 permission profile denies home/config reads and command networking.
 
@@ -99,7 +110,7 @@ are text, never server commands. Codex itself can refresh its login and maintain
 its own state; the model is not given tools to administer the server.
 
 Before accepting requests, startup verifies root ownership and artifact hashes,
-then inspects the actual outgoing tool schema against a loopback-only fake
+then inspects both profiles' outgoing tool schemas against a loopback-only fake
 provider. Unexpected tools/settings fail startup. The event filter is a secondary
 alarm, not a way to undo executed actions. Treat model output and web results as
 untrusted. These controls reduce exposure; they are not a guarantee against
@@ -109,6 +120,12 @@ The version/catalog are deliberately pinned. Normal Codex updates do not silentl
 replace the bridge binary. Review and test any version/catalog change, update the
 expected version in both bridge/installer, and reinstall to regenerate the manifest.
 Do not edit installed files in place or replace the pin with a mutable `current` link.
+
+When upgrading from the Sol-only bridge, reinstall the reviewed bridge source
+and two-model catalog using the installer above before upgrading the bot. This
+regenerates the integrity manifest and runs startup tool checks for both profiles.
+The Codex binary remains pinned at 0.166.0. An old bridge continues to serve `!ai`
+but rejects `!aifast` before inference; it does not silently run the wrong model.
 
 ## Usage and delivery limits
 
@@ -181,3 +198,7 @@ Only source, tests, a model catalog and generic deployment examples belong in a 
 References: [Codex authentication](https://learn.chatgpt.com/docs/auth),
 [Codex configuration](https://learn.chatgpt.com/docs/config-file/config-reference),
 [Codex integrations](https://learn.chatgpt.com/docs/app-server).
+
+Model guidance: OpenAI describes Luna as a faster, lower-cost option for lighter
+work in its [model-selection guidance](https://learn.chatgpt.com/docs/agent-configuration/subagents).
+The commands select different models; they do not enable Codex's premium Fast service tier.

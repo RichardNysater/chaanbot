@@ -389,6 +389,62 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         self.bot._request.assert_not_called()
         self.assertIn("0/20 requests, 0/100000 tokens", self.bot._usage(self.event.sender))
 
+    async def test_fast_command_uses_luna_with_the_same_context_and_settings(self):
+        context = [{"sender": "@bob:example.org", "message": "The blue door"}]
+        self.matrix.recent_messages.return_value = context
+        self.assertFalse(self.bot.should_run("!aifaster Hello"))
+        await self.bot.run(self.room, self.event, "!AIFAST Where is it?")
+        await self.drain(self.bot)
+        fast = self.bot._request.call_args.args[0]
+        standard = self.bot._payload(context, "Where is it?", self.event.sender)
+        self.assertEqual(fast["model"], "gpt-6-luna")
+        self.assertEqual(fast["profile"], "fast")
+        self.assertEqual(fast["reasoning"], {"effort": "medium"})
+        for field in ("input", "instructions", "tools", "store", "stream"):
+            self.assertEqual(fast[field], standard[field])
+        self.matrix.recent_messages.assert_awaited_once_with(self.room.room_id, self.event.event_id, 20)
+
+    async def test_fast_and_standard_share_cooldown_and_usage_in_both_directions(self):
+        for number, commands in enumerate((("!aifast First", "!ai Second"), ("!ai First", "!aifast Second"))):
+            sender = "@both" + str(number) + ":example.org"
+            before = self.bot._request.await_count
+            await self.bot.run(self.room, SimpleNamespace(sender=sender, event_id="$first" + str(number)), commands[0])
+            await self.drain(self.bot)
+            await self.bot.run(self.room, SimpleNamespace(sender=sender, event_id="$second" + str(number)), commands[1])
+            self.assertEqual(self.bot._request.await_count, before + 1)
+            self.assertIn("cooldown", self.matrix.send_text_to_room.call_args.args[0])
+            self.assertEqual(self.bot.storage.usage(sender), (1, 100))
+
+    async def test_fast_and_standard_share_daily_request_limit(self):
+        self.bot.storage.daily_requests = 1
+        await self.bot.run(self.room, self.event, "!ai First")
+        await self.drain(self.bot)
+        with closing(self.database.connect()) as connection, connection:
+            connection.execute("UPDATE ai_requests SET started=?", (time.time() - 100,))
+        await self.bot.run(self.room, SimpleNamespace(sender=self.event.sender, event_id="$fast-limit"), "!aifast Again")
+        self.bot._request.assert_awaited_once()
+        self.assertIn("daily AI budget", self.matrix.send_text_to_room.call_args.args[0])
+
+    async def test_fast_usage_help_reset_and_context_failures_do_not_infer(self):
+        for message in ("!aifast", "!aifast help", "!aifast usage", "!aifast reset"):
+            self.assertTrue(await self.bot.run(self.room, self.event, message))
+        self.bot._request.assert_not_called()
+        self.matrix.recent_messages.assert_not_called()
+        from chaanbot.matrix import RoomHistoryError
+        self.matrix.recent_messages.side_effect = RoomHistoryError("History unavailable")
+        await self.bot.run(self.room, self.event, "!aifast Hello")
+        await self.drain(self.bot)
+        self.bot._request.assert_not_called()
+        self.assertEqual(self.bot.storage.usage(self.event.sender), (0, 0))
+
+    async def test_fast_failure_does_not_fall_back_to_standard(self):
+        self.bot._request.side_effect = PlanError("Unavailable", inference_started=False)
+        await self.bot.run(self.room, self.event, "!aifast Hello")
+        await self.drain(self.bot)
+        self.bot._request.assert_awaited_once()
+        self.assertEqual(self.bot._request.call_args.args[0]["profile"], "fast")
+        self.assertEqual(self.bot.storage.usage(self.event.sender), (0, 0))
+
 
 class BridgeTests(unittest.IsolatedAsyncioTestCase):
     def fake_process(self, events=None, blocked=None):
@@ -502,6 +558,93 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
             release_body.set()
             self.assertEqual((await task).status, 200)
 
+    async def test_startup_checks_both_profiles_and_rejects_unsafe_fast_profile(self):
+        from chaanbot.codex_bridge import verify_tools
+        for failure in (None, "tools", "reasoning", "model"):
+            checked = []
+            runner = SimpleNamespace(setup=AsyncMock(), cleanup=AsyncMock())
+            socket = MagicMock()
+            socket.getsockname.return_value = ("127.0.0.1", 12345)
+            site = SimpleNamespace(start=AsyncMock(), _server=SimpleNamespace(sockets=[socket]))
+            async def spawn(*args, **kwargs):
+                model = args[args.index("--model") + 1]
+                checked.append(model)
+                async def communicate(data):
+                    request = {"model": model, "reasoning": {"effort": "medium"}, "tools": [{"type": "web_search"}]}
+                    if model == "gpt-6-luna":
+                        if failure == "tools":
+                            request["tools"] = [{"type": "function", "name": "shell"}]
+                        elif failure == "reasoning":
+                            request["reasoning"] = {"effort": "low"}
+                        elif failure == "model":
+                            request["model"] = "other"
+                    app = runner_factory.call_args.args[0]
+                    endpoint = next(iter(app.router.routes())).handler
+                    await endpoint(SimpleNamespace(method="POST", json=AsyncMock(return_value=request)))
+                return SimpleNamespace(returncode=1, communicate=communicate)
+            with patch("chaanbot.codex_bridge.web.AppRunner", return_value=runner) as runner_factory:
+                with patch("chaanbot.codex_bridge.web.TCPSite", return_value=site):
+                    with patch("chaanbot.codex_bridge.asyncio.create_subprocess_exec", side_effect=spawn):
+                        if failure is None:
+                            await verify_tools(Path("/tmp"))
+                        else:
+                            with self.assertRaises(ValueError):
+                                await verify_tools(Path("/tmp"))
+            self.assertEqual(checked, ["gpt-6.1-sol", "gpt-6-luna"])
+            runner.cleanup.assert_awaited_once()
+
+    async def test_profiles_are_allowlisted_and_legacy_requests_still_work(self):
+        valid = {"instructions": "Brief", "input": [{"role": "user", "content": "Hello"}]}
+        self.assertEqual(validate_payload(valid), validate_payload(dict(valid, profile="standard")))
+        self.assertEqual(validate_payload(valid), validate_payload(dict(valid, profile="fast")))
+        for profile in (None, [], {}, "gpt-6-luna", "other", "--model=other"):
+            with self.subTest(profile=profile):
+                with self.assertRaises(ValueError):
+                    validate_payload(dict(valid, profile=profile))
+                with self.assertRaises(ValueError):
+                    command("/tmp", profile=profile)
+        app = create_app(Path("/tmp"))
+        handler = next(route.handler for route in app.router.routes() if route.method == "POST")
+        with patch("chaanbot.codex_bridge.infer", AsyncMock()) as request:
+            response = await handler(SimpleNamespace(json=AsyncMock(return_value=dict(valid, profile="other"))))
+        self.assertEqual(response.status, 400)
+        self.assertFalse(json.loads(response.body)["inference_started"])
+        request.assert_not_called()
+
+    async def test_fast_command_changes_only_the_pinned_model(self):
+        standard = command("/tmp/empty")
+        fast = command("/tmp/empty", profile="fast")
+        model_index = standard.index("--model") + 1
+        self.assertEqual(fast[model_index], "gpt-6-luna")
+        fast[model_index] = standard[model_index]
+        self.assertEqual(fast, standard)
+        with open("examples/ai-codex-model.json") as source:
+            models = json.load(source)["models"]
+        self.assertEqual({model["slug"] for model in models}, {"gpt-6.1-sol", "gpt-6-luna"})
+        for model in models:
+            self.assertIsNone(model["apply_patch_tool_type"])
+            self.assertIsNone(model["multi_agent_version"])
+            self.assertEqual(model["experimental_supported_tools"], [])
+            self.assertEqual(model["web_search_tool_type"], "text")
+            self.assertTrue(model["supports_search_tool"])
+            self.assertIn("medium", {level["effort"] for level in model["supported_reasoning_levels"]})
+
+    async def test_inference_launches_the_requested_profile(self):
+        for profile, expected in ((None, "gpt-6.1-sol"), ("standard", "gpt-6.1-sol"), ("fast", "gpt-6-luna")):
+            payload = {"instructions": "Brief", "input": [{"role": "user", "content": "Hello"}]}
+            if profile is not None:
+                payload["profile"] = profile
+            status = SimpleNamespace(returncode=0, communicate=AsyncMock(return_value=(b"Logged in using ChatGPT", b"")))
+            process = self.fake_process([
+                {"type": "item.completed", "item": {"type": "agent_message", "text": "Hello"}},
+                {"type": "turn.completed", "usage": {"input_tokens": 20, "output_tokens": 10}},
+            ])
+            with patch("chaanbot.codex_bridge.asyncio.create_subprocess_exec", AsyncMock(side_effect=[status, process])) as spawn:
+                response = await infer(payload, "/tmp")
+            args = spawn.await_args_list[1].args
+            self.assertEqual(args[args.index("--model") + 1], expected)
+            self.assertEqual(response["usage"]["total_tokens"], 30)
+
     async def test_matrix_errors_are_checked(self):
         client = SimpleNamespace(room_send=AsyncMock(return_value=RoomSendError("denied")))
         matrix = Matrix(configparser.ConfigParser(), client)
@@ -569,10 +712,16 @@ class BridgeTests(unittest.IsolatedAsyncioTestCase):
         with patch("chaanbot.modules.ai.aiohttp.UnixConnector") as connector:
             with patch("chaanbot.modules.ai.aiohttp.ClientSession", return_value=manager):
                 result = await bot._request(bot._payload([], "Hello", "@alice:example.org"))
-        connector.assert_called_once_with(path="/run/chaanbot-ai/bridge.sock")
+                standard_json = session.post.call_args.kwargs["json"]
+                await bot._request(bot._payload([], "Hello", "@alice:example.org", "fast"))
+                fast_json = session.post.call_args.kwargs["json"]
+        self.assertEqual(set(standard_json), {"instructions", "input"})
+        self.assertEqual(fast_json, dict(standard_json, profile="fast"))
+        self.assertEqual(connector.call_count, 2)
+        connector.assert_called_with(path="/run/chaanbot-ai/bridge.sock")
         args, kwargs = session.post.call_args
         self.assertEqual(args, ("http://localhost/ask",))
-        self.assertEqual(set(kwargs["json"]), {"instructions", "input"})
+        self.assertEqual(set(kwargs["json"]), {"instructions", "input", "profile"})
         self.assertNotIn("headers", kwargs)
         self.assertFalse(kwargs["allow_redirects"])
         self.assertEqual(result["status"], "completed")
