@@ -6,7 +6,7 @@ The bot is extensible and currently provides:
 * Highlight module allows users to easily notify groups of users. E.g. "!hl javadevs spring-boot vs micronaut?" would
   highlight/notify any user in the javadevs group.
 * Weather module allows users to broadcast weather reports.
-* Optional `!ai <query>` and faster `!aifast <query>` with per-room opt-in context, per-user quotas, and a restricted local Codex bridge. See [AI setup](docs/ai.md).
+* Optional `!ai <query>` and faster `!aifast <query>` with per-room opt-in context, per-user quotas, admin limit resets, and a restricted local Codex bridge. See [AI setup](docs/ai.md).
 * More to come!
 
 Bot is under active development and severe breaking changes should be expected until a stable release is created.

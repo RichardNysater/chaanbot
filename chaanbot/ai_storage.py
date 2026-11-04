@@ -33,11 +33,15 @@ class AiStorage:
                     tokens INTEGER NOT NULL, pending INTEGER NOT NULL);
                 CREATE INDEX IF NOT EXISTS ai_requests_day
                     ON ai_requests(day, user_id);
+                CREATE TABLE IF NOT EXISTS ai_limit_resets (
+                    event_id TEXT PRIMARY KEY, admin_id TEXT NOT NULL,
+                    target_user_id TEXT NOT NULL, created REAL NOT NULL);
             """)
             columns = {row[1] for row in conn.execute("PRAGMA table_info(ai_requests)")}
             added_columns = {
                 "chargeable": "INTEGER NOT NULL DEFAULT 1",
                 "delivery": "TEXT NOT NULL DEFAULT 'none'",
+                "user_chargeable": "INTEGER NOT NULL DEFAULT 1",
             }
             for name, definition in added_columns.items():
                 if name not in columns:
@@ -55,7 +59,8 @@ class AiStorage:
             conn.execute("BEGIN IMMEDIATE")
             if conn.execute("SELECT 1 FROM ai_requests WHERE event_id=?", (event_id,)).fetchone():
                 return "This AI request has already been handled."
-            recent = conn.execute("SELECT MAX(started) FROM ai_requests WHERE user_id=? AND chargeable=1",
+            recent = conn.execute("SELECT MAX(started) FROM ai_requests "
+                                  "WHERE user_id=? AND chargeable=1 AND user_chargeable=1",
                                   (user_id,)).fetchone()[0]
             if recent is not None and now - recent < self.cooldown:
                 return "AI cooldown: wait {} seconds.".format(math.ceil(self.cooldown - (now - recent)))
@@ -63,7 +68,8 @@ class AiStorage:
                             (user_id, now - 180)).fetchone():
                 return "You already have an AI request in progress."
             count, used = conn.execute("SELECT COUNT(*), COALESCE(SUM(tokens),0) FROM ai_requests "
-                                      "WHERE day=? AND user_id=? AND chargeable=1", (day, user_id)).fetchone()
+                                      "WHERE day=? AND user_id=? AND chargeable=1 AND user_chargeable=1",
+                                      (day, user_id)).fetchone()
             if count >= self.daily_requests or used + tokens > self.daily_tokens:
                 return "Your daily AI budget is exhausted or too low for another request. Resets at 00:00 UTC."
             count, used = conn.execute("SELECT COUNT(*), COALESCE(SUM(tokens),0) FROM ai_requests "
@@ -80,9 +86,23 @@ class AiStorage:
         with closing(self.database.connect()) as conn:
             count, tokens = conn.execute(
                 "SELECT COUNT(*), COALESCE(SUM(tokens),0) FROM ai_requests "
-                "WHERE day=? AND user_id=? AND chargeable=1",
+                "WHERE day=? AND user_id=? AND chargeable=1 AND user_chargeable=1",
                 (self._day(), user_id)).fetchone()
         return count, tokens
+
+    def reset_user_limits(self, event_id: str, admin_id: str, user_id: str) -> str:
+        """Waive personal usage atomically, retaining global charges and event IDs."""
+        with closing(self.database.connect()) as conn, conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM ai_limit_resets WHERE event_id=?", (event_id,)).fetchone():
+                return "duplicate"
+            if conn.execute("SELECT 1 FROM ai_requests WHERE user_id=? AND pending=1 AND started>?",
+                            (user_id, time.time() - 180)).fetchone():
+                return "busy"
+            conn.execute("UPDATE ai_requests SET user_chargeable=0 WHERE user_id=?", (user_id,))
+            conn.execute("INSERT INTO ai_limit_resets(event_id,admin_id,target_user_id,created) VALUES(?,?,?,?)",
+                         (event_id, admin_id, user_id, time.time()))
+        return "reset"
 
     def finish(self, event_id: str, tokens: int, chargeable: bool, delivery: str) -> None:
         """Finalize a pending reservation without changing an already completed request."""

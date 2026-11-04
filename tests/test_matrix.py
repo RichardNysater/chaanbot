@@ -111,6 +111,22 @@ class TestMatrixUtility(IsolatedAsyncioTestCase):
 
         self.assertIsNone(actual_user)
 
+    def test_resolve_user_id_rejects_ambiguous_names(self):
+        from types import SimpleNamespace
+        room = SimpleNamespace(users={
+            "@alice:one.org": SimpleNamespace(user_id="@alice:one.org", display_name="Alice"),
+            "@alice:two.org": SimpleNamespace(user_id="@alice:two.org", display_name="Another"),
+        })
+        with self.assertRaises(ValueError):
+            self.matrix.resolve_user_id(room, "alice")
+        self.assertEqual(self.matrix.resolve_user_id(room, "Another"), "@alice:two.org")
+        self.assertEqual(self.matrix.resolve_user_id(room, "@alice:one.org"), "@alice:one.org")
+        self.assertEqual(self.matrix.resolve_user_id(room, "@departed:three.org"), "@departed:three.org")
+        with self.assertRaises(ValueError):
+            self.matrix.resolve_user_id(room, "alic")
+        with self.assertRaises(ValueError):
+            self.matrix.resolve_user_id(room, "@bad user:one.org")
+
     def test_get_presence(self):
         expected_presence = "presence"
         user_id = "user"
