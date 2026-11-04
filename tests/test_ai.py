@@ -37,7 +37,8 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.temp.cleanup)
         self.database = Database(self.temp.name + "/test.db")
         self.config = configparser.ConfigParser()
-        self.config.read_dict({"ai": {"enabled": "true", "bridge_socket": self.temp.name + "/bridge.sock"}})
+        self.config.read_dict({"ai": {"enabled": "true", "bridge_socket": self.temp.name + "/bridge.sock",
+                                      "context_rooms": "!room:example.org"}})
         self.matrix = SimpleNamespace(send_text_to_room=AsyncMock(), recent_messages=AsyncMock(return_value=[]))
         self.bots = []
         self.bot = self.make_bot()
@@ -130,6 +131,54 @@ class AiTests(unittest.IsolatedAsyncioTestCase):
         with closing(database.connect()) as conn:
             self.assertEqual(conn.execute("SELECT chargeable,delivery FROM ai_requests").fetchone(), (1, "none"))
         self.assertIn("already been handled", bot.storage.reserve("$legacy", self.event.sender, 100))
+
+    async def test_context_is_disabled_by_default_for_both_commands(self):
+        self.config.remove_option("ai", "context_rooms")
+        bot = self.make_bot()
+        bot._request = AsyncMock(return_value=completed())
+        for number, command in enumerate(("!ai", "!aifast")):
+            event = SimpleNamespace(sender="@default" + str(number), event_id="$default" + str(number))
+            await bot.run(self.room, event, command + " Hello")
+            await self.drain(bot)
+            items = bot._request.call_args.args[0]["input"]
+            self.assertEqual(json.loads(items[0]["content"]), {"room_messages": []})
+            self.assertEqual(json.loads(items[1]["content"]), {"sender": event.sender, "query": "Hello"})
+        self.matrix.recent_messages.assert_not_called()
+
+    async def test_only_exact_opted_in_room_uses_context_with_either_model(self):
+        self.matrix.recent_messages.return_value = [{"sender": "@bob:example.org", "message": "Private room text"}]
+        for number, room_id in enumerate(("!other:example.org", "!Room:example.org", "!room:other.org")):
+            room = SimpleNamespace(room_id=room_id, name="Same name", canonical_alias="#same:example.org")
+            event = SimpleNamespace(sender="@outside" + str(number), event_id="$outside" + str(number))
+            await self.bot.run(room, event, "!aifast Hello")
+            await self.drain(self.bot)
+            self.assertNotIn("Private room text", json.dumps(self.bot._request.call_args.args[0]))
+        self.matrix.recent_messages.assert_not_called()
+        for number, command in enumerate(("!ai", "!aifast")):
+            event = SimpleNamespace(sender="@inside" + str(number), event_id="$inside" + str(number))
+            await self.bot.run(self.room, event, command + " Hello")
+            await self.drain(self.bot)
+            self.assertIn("Private room text", json.dumps(self.bot._request.call_args.args[0]))
+        self.assertEqual(self.matrix.recent_messages.await_count, 2)
+
+    async def test_empty_room_allowlist_and_invalid_entries_fail_closed(self):
+        for value in ("", "  , ,  "):
+            self.config.set("ai", "context_rooms", value)
+            self.assertEqual(self.make_bot().context_rooms, frozenset())
+        self.config.set("ai", "context_rooms", " !room:example.org, !other:example.org, !room:example.org ")
+        self.assertEqual(self.make_bot().context_rooms, {"!room:example.org", "!other:example.org"})
+        for value in ("*", "!room*:example.org", "!room?:example.org", "#room:example.org", "room-name", "!", "!room with spaces:example.org"):
+            self.config.set("ai", "context_rooms", value)
+            with self.assertRaises(ValueError):
+                Ai(self.config, self.matrix, self.database, None)
+
+    async def test_help_reports_room_specific_context_permission(self):
+        await self.bot.run(self.room, self.event, "!ai help")
+        self.assertIn("preceding messages", self.matrix.send_text_to_room.call_args.args[0])
+        await self.bot.run(SimpleNamespace(room_id="!other:example.org"), self.event, "!aifast help")
+        self.assertIn("context is disabled here", self.matrix.send_text_to_room.call_args.args[0])
+        self.matrix.recent_messages.assert_not_called()
+        self.bot._request.assert_not_called()
 
     async def test_context_uses_current_room_and_labels_every_sender(self):
         messages = [

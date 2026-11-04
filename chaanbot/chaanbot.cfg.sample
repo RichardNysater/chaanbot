@@ -75,7 +75,9 @@ enabled = false
 # global_daily_tokens = 1000000
 # request_token_reserve = 40000
 # max_query_bytes = 4000
+# Context is disabled in every room unless its exact room ID is listed here.
+# context_rooms = !example-room:example.org
 # context_messages = 20
 # context_bytes = 12000
-# Includes preceding room text from everyone, including the bot, when asking AI.
+# Opted-in rooms include preceding text from everyone, including the bot, when asking AI.
 # max_answer_bytes = 6000

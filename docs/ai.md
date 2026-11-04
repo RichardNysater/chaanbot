@@ -27,14 +27,20 @@ There is no automatic fallback to Sol if Luna is unavailable. Model access and
 subscription allowance depend on the signed-in account; this integration does
 not introduce API billing or promise a particular usage discount.
 
-Each query sends up to 20 preceding text messages from the same Matrix room,
-including messages from other participants and Chaanbot's replies. Every message
+Room-message context is disabled by default. Only rooms explicitly listed in
+`[ai] context_rooms` send preceding messages. In all other rooms the bot skips
+Matrix history retrieval and sends only the current question and requester ID.
+Both `!ai` and `!aifast` follow the same room allowlist.
+
+For opted-in rooms, each query sends up to 20 preceding text messages from the
+same Matrix room, including messages from other participants and Chaanbot's replies. Every message
 is labelled with its sender's full Matrix user ID. The current request is sent
 once, separately with the requester's ID. Messages after the triggering command
 are excluded, even when the AI job waits in the queue. Room messages are untrusted
 background data, not instructions or grants of authority.
 
-History is fetched from Matrix for each question, so it works after bot restarts.
+In opted-in rooms, history is fetched from Matrix for each question, so it works
+after bot restarts.
 Retrieval allows at most five API calls and ten seconds total. It may return fewer
 than 20 messages because of history access, filtering, or size limits. Only plain
 text is included: attachments, membership events, redacted messages, and edit
@@ -47,8 +53,27 @@ personal history tables are left untouched but are no longer read or written.
 Recent room context is not saved locally. Request accounting remains persistent
 in SQLite and usage limits remain per user across rooms. Replies are visible to
 everyone in the room. Normal Codex conversations and other rooms are not supplied.
-Ensure room participants understand that asking AI shares recent room text with
-OpenAI.
+Ensure participants in opted-in rooms understand that asking AI shares recent
+room text with OpenAI. Help replies indicate whether context is enabled in the
+current room.
+
+## Opting a room into context
+
+Configure a comma-separated allowlist of exact, case-sensitive Matrix room IDs:
+
+```ini
+[ai]
+enabled = true
+context_rooms = !example-room:example.org
+```
+
+An absent or empty `context_rooms` disables context everywhere. This is a change
+from the earlier behavior that included context in every room. Room names,
+aliases, and wildcard entries are not accepted. Resolve an alias to its immutable
+room ID through the Matrix room directory, then configure that ID. This avoids
+granting context access to a different room if an alias is moved. Restart the bot
+after changing the configuration. To opt out, remove the room ID and restart.
+No room IDs or private deployment configuration belong in the repository.
 
 ## Isolated bridge installation
 
@@ -140,11 +165,12 @@ Defaults, adjustable in `[ai]`:
 | `global_daily_tokens` | 1000000 |
 | `request_token_reserve` | 40000 |
 | `max_query_bytes` | 4000 |
+| `context_rooms` | empty (context disabled everywhere) |
 | `context_messages` | 20 |
 | `context_bytes` | 12000 |
 | `max_answer_bytes` | 6000 |
 
-Limits must be positive. Query/context/message-count limits cannot exceed their
+Numeric limits must be positive. Query/context/message-count limits cannot exceed their
 listed bounds; answer size can be at most 12000 bytes. The newest whole context
 messages that fit the serialized byte budget are retained. If the newest message
 alone is too large, its body is shortened safely with a marker. Sender IDs remain
